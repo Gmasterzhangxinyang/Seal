@@ -11,8 +11,8 @@ from vision.qr_scanner import scan_qr
 from vision.page_counter import check_page_completeness
 from vision.classifier import classify_document
 from validator.rules import DocumentValidator
-from hardware.arm import ArmController
-from hardware.arm import compute_pwms_at_position, load_calibration
+from hardware.arm import create_controller
+from hardware.arm import compute_position_at_xy, load_calibration
 from database.audit import log_action
 from database import review_queue as rq
 from config import DB_PATH, PAPER_DETECTION_ENABLED
@@ -35,7 +35,7 @@ class DocumentProcessor:
     def __init__(self):
         from vision.camera import SharedCamera
         self.camera   = SharedCamera.get_instance()
-        self.arm      = ArmController()
+        self.arm      = create_controller()
         self.validator = DocumentValidator()
         logger.info('DocumentProcessor 已初始化')
 
@@ -189,14 +189,14 @@ class DocumentProcessor:
             stamp_pos = find_stamp_target(boxes)
             if stamp_pos:
                 logger.info(f'盖章位置 (归一化): x={stamp_pos[0]:.3f}, y={stamp_pos[1]:.3f}')
-                pwms = compute_pwms_at_position(stamp_pos[0], stamp_pos[1], cal)
-                logger.info(f'盖章 PWM: {pwms}')
+                pwms = compute_position_at_xy(stamp_pos[0], stamp_pos[1], cal)
+                logger.info(f'盖章位置值: {pwms}')
                 self.arm.stamp_at(pwms)
                 return
             logger.warning('未找到盖章目标位置，使用默认位置')
         else:
             logger.info(f'标定/boxes 状态: corners={bool(cal.get("corners"))}, boxes={bool(boxes)}')
-        self.arm.stamp_at({0: 1500, 2: 1500})
+        self.arm.stamp_at({0: self.arm.neutral_value, 2: self.arm.neutral_value})
 
     def shutdown(self):
         from vision.camera import SharedCamera

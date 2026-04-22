@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}机械臂标定 · 文档盖章系统{% endblock %}
+{% block title %}机械臂标定{% if arm_type == 'hiwonder' %} (Hiwonder ArmPi){% else %} (WeArm){% endif %} · 文档盖章系统{% endblock %}
 
 {% block head %}
 <style>
@@ -96,9 +96,10 @@
 
 {% block content %}
 <div class="card">
-  <h2>机械臂四角标定</h2>
+  <h2>机械臂四角标定{% if arm_type == 'hiwonder' %} <small style="color:#6c757d;">Hiwonder ArmPi (总线舵机)</small>{% endif %}</h2>
   <p style="color:#6c757d;font-size:.9rem;margin-bottom:1rem;">
     将A4纸放置在底板上，拖动下方滑块实时控制机械臂移动到纸张四个角，分别保存。
+    当前机械臂: <strong>{{ arm_type }}</strong>，位置值范围: {{ value_min }}-{{ value_max }}，中位: {{ value_mid }}。
   </p>
 
   <div id="calStatus" class="cal-status incomplete">标定状态加载中...</div>
@@ -161,7 +162,7 @@
 {% block scripts %}
 <script>
 const SERVO_NAMES = {0:'S0 底盘',1:'S1 大臂',2:'S2 小臂',3:'S3 手腕',4:'S4 夹爪',5:'S5 辅助'};
-const PWM_MIN = 500, PWM_MAX = 2500, PWM_MID = 1500;
+const PWM_MIN = {{ value_min }}, PWM_MAX = {{ value_max }}, PWM_MID = {{ value_mid }};
 let currentPwms = {};
 let savedCorners = {};
 let pendingPwm = null;  // {sid, val} 待发送的值

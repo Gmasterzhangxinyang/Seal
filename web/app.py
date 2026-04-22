@@ -47,8 +47,8 @@ def get_processor():
 def get_arm():
     global _arm
     if _arm is None:
-        from hardware.arm import ArmController
-        _arm = ArmController()
+        from hardware.arm import create_controller
+        _arm = create_controller()
     return _arm
 
 
@@ -542,9 +542,15 @@ def _save_fields(template_id, form_data, replace=False):
 @role_required('admin')
 def calibration_page():
     from hardware.arm import load_calibration
+    from config import ARM_TYPE
     cal = load_calibration()
+    arm = get_arm()
     return render_template('calibration.html',
                            calibration=cal,
+                           arm_type=ARM_TYPE,
+                           value_min=arm.value_min,
+                           value_max=arm.value_max,
+                           value_mid=arm.neutral_value,
                            username=session['username'],
                            role=session['role'])
 
@@ -562,7 +568,8 @@ def calibration_ping():
     """测试机械臂连通性：发送回中位指令"""
     try:
         arm = get_arm()
-        arm.move_to({0: 1500, 1: 1500, 2: 1500, 3: 1500, 4: 1500, 5: 1500}, 1000)
+        mid = arm.neutral_value
+        arm.move_to({i: mid for i in range(6)}, 1000)
         ok = arm.ping()
         logging.info(f'[标定] ping: connected={ok}')
         return jsonify({'status': 'ok', 'connected': ok})
@@ -645,7 +652,9 @@ def calibration_reset():
 @app.route('/api/calibration/home', methods=['POST'])
 @login_required
 def calibration_home():
-    get_arm().move_to({i: 1500 for i in range(6)}, 1000)
+    arm = get_arm()
+    mid = arm.neutral_value
+    arm.move_to({i: mid for i in range(6)}, 1000)
     return jsonify({'status': 'ok'})
 
 
