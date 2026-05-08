@@ -1,10 +1,13 @@
 {
+  "name": "mec202",
+  "private": true,
   "scripts": {
-    "dev": "concurrently -n backend,frontend -c blue,green -p \"[{name}]\" \"python -m api.main\" \"npm --prefix frontend run dev\"",
-    "dev:backend": "python -m api.main",
-    "dev:frontend": "npm --prefix frontend run dev"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "clean": "turbo run clean"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
-  }
+    "turbo": "^2"
+  },
+  "packageManager": "pnpm@9.15.0"
 }

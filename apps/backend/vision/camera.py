@@ -96,42 +96,48 @@ class SharedCamera:
 
     def _read_loop(self):
         while self._running:
-            ret, frame = self._cap.read()
-            if ret:
-                with self._frame_lock:
-                    self._latest_frame = frame
-                self._error_count = 0
-            else:
-                self._error_count += 1
-                if self._error_count > 30:
-                    logger.error('摄像头连续读取失败，等待重新初始化')
-                    self._reconnect()
-                    # 重连后等一等再继续读，避免快速循环
-                    time.sleep(2)
+            try:
+                ret, frame = self._cap.read()
+                if ret:
+                    with self._frame_lock:
+                        self._latest_frame = frame
+                    self._error_count = 0
                 else:
-                    time.sleep(0.01)
+                    self._error_count += 1
+                    if self._error_count > 30:
+                        logger.error('摄像头连续读取失败，等待重新初始化')
+                        self._reconnect()
+                        return  # 旧线程退出，新线程已由 _reconnect 创建
+                    else:
+                        time.sleep(0.01)
+            except Exception as e:
+                logger.warning(f'摄像头读取异常: {e}')
+                time.sleep(1)
 
     def _reconnect(self):
         """摄像头断连后自动重连。"""
         self._running = False
-        if self._thread.is_alive():
+        if self._thread.is_alive() and self._thread is not threading.current_thread():
             self._thread.join(timeout=3)
         try:
             self._cap.release()
         except Exception:
             pass
         time.sleep(1.0)
-        cap = open_camera(self._index, retries=3, backend=self._backend)
-        if cap is not None:
-            self._cap = cap
-            self._error_count = 0
-            self._running = True
-            self._thread = threading.Thread(target=self._read_loop, daemon=True)
-            self._thread.start()
-            self._warmup()
-            logger.info('摄像头重连成功')
-        else:
-            logger.error('摄像头重连失败')
+        try:
+            cap = open_camera(self._index, retries=3, backend=self._backend)
+            if cap is not None:
+                self._cap = cap
+                self._error_count = 0
+                self._running = True
+                self._thread = threading.Thread(target=self._read_loop, daemon=True)
+                self._thread.start()
+                self._warmup()
+                logger.info('摄像头重连成功')
+            else:
+                logger.error('摄像头重连失败')
+        except Exception as e:
+            logger.error(f'摄像头重连异常: {e}')
 
     def get_frame(self):
         """返回最新帧副本（给视频流用）"""

@@ -1,0 +1,8 @@
+{
+  "name": "@mec202/backend",
+  "private": true,
+  "scripts": {
+    "dev": "uv run python -m api.main",
+    "build": "echo 'no build step'"
+  }
+}

@@ -1,15 +1,16 @@
 import os
 import sys
 import logging
+import threading
 import traceback
 from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 # ─── 日志配置 ──────────────────────────────────────────────────────────────────
-LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'log')
+_BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOG_DIR = os.path.join(_BACKEND_DIR, 'log')
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, datetime.now().strftime('%y%m%d_%H%M%S') + '.log')
 
@@ -32,19 +33,21 @@ logger = logging.getLogger(__name__)
 logger.info(f'日志文件: {LOG_FILE}')
 
 
-def _global_exception_hook(exc_type, exc_value, exc_tb):
-    """捕获未处理异常写入日志"""
-    logger.critical(
+def _log_exception(exc_type, exc_value, exc_tb):
+    logger.error(
         '未捕获异常:\n' + ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
     )
 
 
-sys.excepthook = _global_exception_hook
+sys.excepthook = _log_exception
+threading.excepthook = lambda args: _log_exception(
+    args.exc_type, args.exc_value, args.exc_traceback
+)
 
 # ─── FastAPI 应用 ─────────────────────────────────────────────────────────────
 from database.models import init_db
 from database.seed import seed_demo_data, seed_default_templates
-from config import WEB_HOST, WEB_PORT, BASE_DIR
+from config import WEB_HOST, WEB_PORT
 
 app = FastAPI(title="文档盖章机器人", version="2.0")
 
@@ -79,27 +82,37 @@ app.include_router(calibration_router, prefix="/api")
 app.include_router(images_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
 
-# 生产环境：服务前端静态文件
-FRONTEND_DIST = os.path.join(BASE_DIR, "frontend", "dist")
-if os.path.isdir(FRONTEND_DIST):
-    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
 
-    from starlette.responses import FileResponse as StarletteFileResponse
+def _mount_spa():
+    """生产模式：挂载前端静态文件。仅在 start() 中调用。"""
+    from fastapi.staticfiles import StaticFiles
+    from starlette.responses import FileResponse as FResponse
+
+    dist = os.path.join(_BACKEND_DIR, '..', 'web', 'dist')
+    if not os.path.isdir(dist):
+        return
+    app.mount("/assets", StaticFiles(directory=os.path.join(dist, "assets")), name="assets")
 
     @app.get("/{path:path}")
     async def serve_spa(path: str):
-        file_path = os.path.join(FRONTEND_DIST, path)
+        file_path = os.path.join(dist, path)
         if path and os.path.isfile(file_path):
-            return StarletteFileResponse(file_path)
-        return StarletteFileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+            return FResponse(file_path)
+        return FResponse(os.path.join(dist, "index.html"))
 
 
 def start():
+    import atexit
+    import signal
     import uvicorn
+
+    atexit.register(lambda: logger.info('进程正常退出'))
+    signal.signal(signal.SIGINT, lambda *_: (logger.info('收到 SIGINT'), sys.exit(0)))
+
     init_db()
     seed_demo_data()
     seed_default_templates()
-    # 预初始化摄像头（config.py 自动检测时已缓存 CAMERA_PROBE）
+    _mount_spa()
     try:
         from vision.camera import SharedCamera
         from config import CAMERA_INDEX, CAMERA_BACKEND
@@ -107,7 +120,12 @@ def start():
         logger.info('摄像头初始化完成')
     except Exception as e:
         logger.warning(f'摄像头初始化失败（后端仍可运行）: {e}')
-    uvicorn.run(app, host=WEB_HOST, port=WEB_PORT)
+    try:
+        uvicorn.run(app, host=WEB_HOST, port=WEB_PORT)
+    except SystemExit:
+        raise
+    except Exception:
+        logger.error('uvicorn 异常退出', exc_info=True)
 
 
 if __name__ == "__main__":
