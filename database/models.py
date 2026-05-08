@@ -1,325 +1,110 @@
-import sqlite3
-import os
-from werkzeug.security import generate_password_hash
-from config import DB_PATH
+from sqlalchemy import String, Integer, Text, ForeignKey
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Personnel(Base):
+    __tablename__ = 'personnel'
+
+    id_number: Mapped[str] = mapped_column(String(20), primary_key=True)
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    dept: Mapped[str | None] = mapped_column(String(100))
+    role: Mapped[str | None] = mapped_column(String(50))
+
+
+class AuditLog(Base):
+    __tablename__ = 'audit_log'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    timestamp: Mapped[str] = mapped_column(String(30), nullable=False)
+    operator_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    doc_type: Mapped[str | None] = mapped_column(String(50))
+    qr_content: Mapped[str | None] = mapped_column(String(500))
+    doc_fields: Mapped[str | None] = mapped_column(Text)
+    ocr_text: Mapped[str | None] = mapped_column(Text)
+    result: Mapped[str] = mapped_column(String(30), nullable=False)
+    errors: Mapped[str | None] = mapped_column(Text)
+    before_img: Mapped[str | None] = mapped_column(String(500))
+    after_img: Mapped[str | None] = mapped_column(String(500))
+    dms_doc_id: Mapped[str | None] = mapped_column(String(100))
+
+
+class ReviewQueue(Base):
+    __tablename__ = 'review_queue'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    timestamp: Mapped[str] = mapped_column(String(30), nullable=False)
+    operator_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    doc_type: Mapped[str | None] = mapped_column(String(50))
+    doc_fields: Mapped[str | None] = mapped_column(Text)
+    ocr_text: Mapped[str | None] = mapped_column(Text)
+    warnings: Mapped[str | None] = mapped_column(Text)
+    image_path: Mapped[str | None] = mapped_column(String(500))
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default='pending')
+    reviewer_id: Mapped[str | None] = mapped_column(String(50))
+    resolved_at: Mapped[str | None] = mapped_column(String(30))
+    decision: Mapped[str | None] = mapped_column(String(20))
+    stamped: Mapped[int | None] = mapped_column(Integer, server_default='0')
+
+
+class User(Base):
+    __tablename__ = 'users'
+
+    username: Mapped[str] = mapped_column(String(50), primary_key=True)
+    password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
+    email: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    role: Mapped[str] = mapped_column(String(20), nullable=False, server_default='operator')
+    created_at: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class DocTemplate(Base):
+    __tablename__ = 'doc_templates'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    code: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    description: Mapped[str | None] = mapped_column(Text)
+    is_system: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
+    classification_keywords: Mapped[str | None] = mapped_column(Text)
+    classification_regex: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(String(30), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(30), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, server_default='0')
+    requires_stamp: Mapped[int] = mapped_column(Integer, server_default='1')
+    stamp_position: Mapped[str] = mapped_column(String(100), server_default='')
+    stamp_keywords: Mapped[str | None] = mapped_column(Text)
+
+
+class TemplateField(Base):
+    __tablename__ = 'template_fields'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    template_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey('doc_templates.id', ondelete='CASCADE'), nullable=False
+    )
+    field_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    field_label: Mapped[str] = mapped_column(String(100), nullable=False)
+    field_category: Mapped[str] = mapped_column(String(20), nullable=False, server_default='required')
+    ocr_pattern: Mapped[str | None] = mapped_column(Text)
+    validation_rule: Mapped[str | None] = mapped_column(Text)
+    sort_order: Mapped[int] = mapped_column(Integer, server_default='0')
+
+
+class TemplateExample(Base):
+    __tablename__ = 'template_examples'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    template_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey('doc_templates.id', ondelete='CASCADE'), nullable=False, unique=True
+    )
+    image_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    generated_at: Mapped[str] = mapped_column(String(30), nullable=False)
 
 
 def init_db():
-    """初始化所有数据表（如已存在则跳过）"""
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    # ── 人员记录表（ID对库验证用）────────────────────────────────────────────
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS personnel (
-            id_number TEXT PRIMARY KEY,
-            name      TEXT NOT NULL,
-            dept      TEXT,
-            role      TEXT
-        )
-    ''')
-
-    # ── 审计日志表 ────────────────────────────────────────────────────────────
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS audit_log (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp    TEXT    NOT NULL,
-            operator_id  TEXT    NOT NULL,
-            doc_type     TEXT,
-            qr_content   TEXT,
-            doc_fields   TEXT,
-            ocr_text     TEXT,
-            result       TEXT    NOT NULL,
-            errors       TEXT,
-            before_img   TEXT,
-            after_img    TEXT,
-            dms_doc_id   TEXT
-        )
-    ''')
-
-    # ── 人工复审队列 ──────────────────────────────────────────────────────────
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS review_queue (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp    TEXT    NOT NULL,
-            operator_id  TEXT    NOT NULL,
-            doc_type     TEXT,
-            doc_fields   TEXT,
-            ocr_text     TEXT,
-            warnings     TEXT,
-            image_path   TEXT,
-            status       TEXT    NOT NULL DEFAULT 'pending',
-            reviewer_id  TEXT,
-            resolved_at  TEXT,
-            decision     TEXT
-        )
-    ''')
-
-    # ── 用户权限表 ────────────────────────────────────────────────────────────
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            username     TEXT PRIMARY KEY,
-            password_hash TEXT NOT NULL,
-            role         TEXT NOT NULL DEFAULT 'operator'
-        )
-    ''')
-
-    # ── 文档模板定义表 ────────────────────────────────────────────────────────
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS doc_templates (
-            id                     INTEGER PRIMARY KEY AUTOINCREMENT,
-            name                   TEXT    NOT NULL,
-            code                   TEXT    NOT NULL UNIQUE,
-            description            TEXT    DEFAULT '',
-            is_system              INTEGER NOT NULL DEFAULT 0,
-            classification_keywords TEXT    DEFAULT '[]',
-            classification_regex   TEXT    DEFAULT '',
-            created_at             TEXT    NOT NULL,
-            updated_at             TEXT    NOT NULL,
-            sort_order             INTEGER DEFAULT 0
-        )
-    ''')
-
-    # ── 模板字段定义表 ────────────────────────────────────────────────────────
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS template_fields (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            template_id     INTEGER NOT NULL,
-            field_name      TEXT    NOT NULL,
-            field_label     TEXT    NOT NULL,
-            field_category  TEXT    NOT NULL DEFAULT 'required',
-            ocr_pattern     TEXT    DEFAULT '',
-            validation_rule TEXT    DEFAULT '',
-            sort_order      INTEGER DEFAULT 0,
-            FOREIGN KEY (template_id) REFERENCES doc_templates(id) ON DELETE CASCADE
-        )
-    ''')
-
-    # ── 模板示例图片表 ────────────────────────────────────────────────────────
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS template_examples (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            template_id  INTEGER NOT NULL UNIQUE,
-            image_path   TEXT    NOT NULL,
-            generated_at TEXT    NOT NULL,
-            FOREIGN KEY (template_id) REFERENCES doc_templates(id) ON DELETE CASCADE
-        )
-    ''')
-
-    conn.commit()
-
-    try:
-        c.execute('ALTER TABLE review_queue ADD COLUMN stamped INTEGER DEFAULT 0')
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        c.execute("ALTER TABLE audit_log ADD COLUMN ocr_text TEXT")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        c.execute("ALTER TABLE review_queue ADD COLUMN ocr_text TEXT")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
-
-    # 模板盖章配置
-    try:
-        c.execute("ALTER TABLE doc_templates ADD COLUMN requires_stamp INTEGER DEFAULT 1")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        c.execute("ALTER TABLE doc_templates ADD COLUMN stamp_position TEXT DEFAULT ''")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        c.execute("ALTER TABLE doc_templates ADD COLUMN stamp_keywords TEXT DEFAULT ''")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
-
-    conn.close()
-
-
-def seed_demo_data():
-    """
-    写入演示数据：
-      - 3个测试人员（用于ID对库验证演示）
-      - 3个测试账号
-    如果数据已存在则跳过。
-    """
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    # 人员数据
-    personnel = [
-        ('20210001', '张三', '计算机学院', 'student'),
-        ('20210002', '李四', '计算机学院', 'student'),
-        ('20210003', '王五', '电子工程学院', 'student'),
-        ('T001',     '陈邦翔', '教务处', 'staff'),
-    ]
-    c.executemany(
-        'INSERT OR IGNORE INTO personnel VALUES (?,?,?,?)',
-        personnel
-    )
-
-    # 用户账号（密码明文: admin123 / op123 / reviewer123）
-    users = [
-        ('admin',    generate_password_hash('admin123'),    'admin'),
-        ('operator1', generate_password_hash('op123'),      'operator'),
-        ('reviewer1', generate_password_hash('reviewer123'), 'reviewer'),
-    ]
-    c.executemany(
-        'INSERT OR IGNORE INTO users VALUES (?,?,?)',
-        users
-    )
-
-    conn.commit()
-    conn.close()
-
-
-def seed_default_templates():
-    """写入预设文档模板和字段定义（已存在则跳过）"""
-    from database.template import create_template, add_field
-
-    templates = [
-        {
-            'name': '请假条',
-            'code': 'leave',
-            'description': '学生请假申请文件，包含请假原因、天数等信息',
-            'is_system': 1,
-            'sort_order': 1,
-            'keywords': ['请假', '事假', '病假', '公假', '请假条', '请假申请', '请假类型', '请假天数'],
-            'regex': '请假',
-            'requires_stamp': 1,
-            'stamp_position': '0.82,0.85',
-            'stamp_keywords': '盖章处,审批人,辅导员意见',
-            'fields': [
-                ('姓名', '姓名', 'required', r'姓\s*名\s*[：:]\s*(\S{2,5})',
-                 '{"regex": "\\S{2,5}", "min_length": 2, "max_length": 5}'),
-                ('学号', '学号', 'required', r'(?:学号|工号|学生编号)\s*[：:]\s*(\d{6,12})',
-                 '{"regex": "^\\d{6,12}$"}'),
-                ('日期', '日期', 'required',
-                 r'(\d{4})\s*[-年/]\s*(\d{1,2})\s*[-月/]\s*(\d{1,2})\s*日?',
-                 '{"date_format": "%Y-%m-%d"}'),
-                ('原因', '请假原因', 'required', r'(?:原因|事由|请假原因)\s*[：:]\s*(.{2,30})',
-                 '{"min_length": 2, "max_length": 30}'),
-                ('请假类型', '请假类型', 'optional', r'(?:请假类型|假别)\s*[：:]\s*(\S{2,10})',
-                 '{"allowed_values": ["事假", "病假", "公假", "丧假", "婚假"]}'),
-                ('金额', '报销金额', 'forbidden', '', ''),
-            ],
-        },
-        {
-            'name': '报销申请表',
-            'code': 'expense',
-            'description': '费用报销申请文件，包含金额、用途等信息',
-            'is_system': 1,
-            'sort_order': 2,
-            'keywords': ['报销', '费用', '金额', '合计', '总计', '用途', '报销单', '报销申请'],
-            'regex': '报销',
-            'requires_stamp': 1,
-            'stamp_position': '0.80,0.85',
-            'stamp_keywords': '盖章处,审批人,财务审核',
-            'fields': [
-                ('姓名', '姓名', 'required', r'姓\s*名\s*[：:]\s*(\S{2,5})',
-                 '{"regex": "\\S{2,5}", "min_length": 2, "max_length": 5}'),
-                ('学号', '学号', 'required', r'(?:学号|工号|学生编号)\s*[：:]\s*(\d{6,12})',
-                 '{"regex": "^\\d{6,12}$"}'),
-                ('日期', '日期', 'required',
-                 r'(\d{4})\s*[-年/]\s*(\d{1,2})\s*[-月/]\s*(\d{1,2})\s*日?',
-                 '{"date_format": "%Y-%m-%d"}'),
-                ('金额', '报销金额', 'required', r'(?:金额|合计|总计)\s*[：:￥¥]?\s*(\d+(?:\.\d{1,2})?)\s*元?',
-                 '{"regex": "^\\d+(\\.\\d{1,2})?$", "min_value": 0.01, "max_value": 100000}'),
-                ('用途', '报销用途', 'optional', r'(?:用途|事由|说明)\s*[：:]\s*(.{2,50})',
-                 '{"min_length": 2}'),
-                ('原因', '请假原因', 'forbidden', '', ''),
-            ],
-        },
-        {
-            'name': '证明申请',
-            'code': 'cert',
-            'description': '各类证明文件申请，如在读证明、成绩证明等',
-            'is_system': 1,
-            'sort_order': 3,
-            'keywords': ['证明', '在读', '成绩', '学籍', '毕业', '证明申请'],
-            'regex': '证明',
-            'requires_stamp': 1,
-            'stamp_position': '0.75,0.80',
-            'stamp_keywords': '盖章处,学院公章,教务处',
-            'fields': [
-                ('姓名', '姓名', 'required', r'姓\s*名\s*[：:]\s*(\S{2,5})',
-                 '{"regex": "\\S{2,5}", "min_length": 2, "max_length": 5}'),
-                ('学号', '学号', 'required', r'(?:学号|工号|学生编号)\s*[：:]\s*(\d{6,12})',
-                 '{"regex": "^\\d{6,12}$"}'),
-                ('日期', '日期', 'required',
-                 r'(\d{4})\s*[-年/]\s*(\d{1,2})\s*[-月/]\s*(\d{1,2})\s*日?',
-                 '{"date_format": "%Y-%m-%d"}'),
-                ('证明类型', '证明类型', 'optional', r'(?:证明类型|类型)\s*[：:]\s*(\S{2,20})',
-                 '{"allowed_values": ["在读证明", "成绩证明", "毕业证明", "学位证明", "学籍证明"]}'),
-                ('金额', '报销金额', 'forbidden', '', ''),
-            ],
-        },
-        {
-            'name': '通用文件',
-            'code': 'general',
-            'description': '无法归类的通用文件，仅检查基本字段',
-            'is_system': 1,
-            'sort_order': 99,
-            'keywords': [],
-            'regex': '',
-            'requires_stamp': 1,
-            'stamp_position': '0.82,0.85',
-            'stamp_keywords': '盖章处,签名,签字',
-            'fields': [
-                ('姓名', '姓名', 'required', r'姓\s*名\s*[：:]\s*(\S{2,5})',
-                 '{"regex": "\\S{2,5}"}'),
-                ('日期', '日期', 'required',
-                 r'(\d{4})\s*[-年/]\s*(\d{1,2})\s*[-月/]\s*(\d{1,2})\s*日?',
-                 '{"date_format": "%Y-%m-%d"}'),
-            ],
-        },
-    ]
-
-    conn = sqlite3.connect(DB_PATH)
-
-    for tpl in templates:
-        # 检查是否已存在
-        from database.template import get_template_by_code
-        existing = get_template_by_code(tpl['code'])
-        if existing:
-            # 更新盖章配置（如果字段不存在则补充）
-            conn.execute(
-                'UPDATE doc_templates SET requires_stamp=?, stamp_position=?, stamp_keywords=? WHERE id=?',
-                (tpl.get('requires_stamp', 1), tpl.get('stamp_position', ''),
-                 tpl.get('stamp_keywords', ''), existing['id'])
-            )
-            conn.commit()
-            continue
-        tid = create_template(
-            name=tpl['name'],
-            code=tpl['code'],
-            description=tpl['description'],
-            classification_keywords=tpl['keywords'],
-            classification_regex=tpl['regex'],
-            is_system=tpl['is_system'],
-            sort_order=tpl['sort_order'],
-        )
-        # 写入盖章配置
-        conn.execute(
-            'UPDATE doc_templates SET requires_stamp=?, stamp_position=?, stamp_keywords=? WHERE id=?',
-            (tpl.get('requires_stamp', 1), tpl.get('stamp_position', ''),
-             tpl.get('stamp_keywords', ''), tid)
-        )
-        conn.commit()
-        for i, fd in enumerate(tpl['fields']):
-            add_field(tid, fd[0], fd[1], fd[2], fd[3], fd[4], i)
-
-    conn.close()
+    """创建所有不存在的表。"""
+    from database.connection import engine
+    Base.metadata.create_all(engine)

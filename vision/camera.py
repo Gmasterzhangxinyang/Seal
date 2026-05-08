@@ -4,7 +4,7 @@ import os
 import threading
 import time
 from datetime import datetime
-from config import CAMERA_INDEX, AUDIT_IMAGE_DIR
+from config import CAMERA_INDEX, CAMERA_BACKEND, AUDIT_IMAGE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +17,10 @@ _FOURCC_OPTIONS = [
 ]
 
 
-def open_camera(index, retries=3, retry_delay=1.0):
+def open_camera(index, retries=3, retry_delay=1.0, backend=None):
     """打开摄像头并设置最高分辨率，支持重试和格式协商。"""
     for attempt in range(1, retries + 1):
-        cap = cv2.VideoCapture(index)
+        cap = cv2.VideoCapture(index, backend) if backend else cv2.VideoCapture(index)
         if not cap.isOpened():
             logger.warning(f'摄像头打开失败 (尝试 {attempt}/{retries})')
             if attempt < retries:
@@ -46,8 +46,10 @@ def open_camera(index, retries=3, retry_delay=1.0):
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, best_w)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, best_h)
         cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
-        # 降低缓冲区大小以减少延迟
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        try:
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        except Exception:
+            pass
 
         logger.info(f'摄像头已打开: index={index}, 分辨率={best_w}x{best_h} (尝试 {attempt})')
         return cap
@@ -59,9 +61,10 @@ class SharedCamera:
     """单例摄像头 + 后台线程帧缓冲，避免多 VideoCapture 冲突"""
     _instance = None
 
-    def __init__(self, index=0):
+    def __init__(self, index=0, backend=None):
         self._index = index
-        self._cap = open_camera(index)
+        self._backend = backend
+        self._cap = open_camera(index, backend=backend)
         if self._cap is None:
             raise RuntimeError(f'无法打开摄像头（index={index}），请检查连接')
         self._frame_lock = threading.Lock()
@@ -99,8 +102,10 @@ class SharedCamera:
             else:
                 self._error_count += 1
                 if self._error_count > 30:
-                    logger.error('摄像头连续读取失败，尝试重新初始化')
+                    logger.error('摄像头连续读取失败，等待重新初始化')
                     self._reconnect()
+                    # 重连后等一等再继续读，避免快速循环
+                    time.sleep(2)
                 else:
                     time.sleep(0.01)
 
@@ -111,7 +116,7 @@ class SharedCamera:
         except Exception:
             pass
         time.sleep(1.0)
-        cap = open_camera(self._index, retries=2)
+        cap = open_camera(self._index, retries=2, backend=self._backend)
         if cap is not None:
             self._cap = cap
             self._error_count = 0
@@ -152,11 +157,36 @@ class SharedCamera:
         """检查摄像头是否正常工作。"""
         return self._latest_frame is not None and self._error_count < 10
 
+    def switch(self, index: int, backend=None):
+        """在运行中切换到另一个摄像头，保持流连接不断。"""
+        new_cap = open_camera(index, backend=backend or self._backend)
+        if new_cap is None:
+            raise RuntimeError(f'无法打开摄像头（index={index}）')
+        # 新摄像头打开成功，替换旧的
+        self._running = False
+        self._thread.join(timeout=5)
+        try:
+            self._cap.release()
+        except Exception:
+            pass
+        self._index = index
+        self._backend = backend or self._backend
+        self._cap = new_cap
+        self._latest_frame = None
+        self._error_count = 0
+        self._running = True
+        self._thread = threading.Thread(target=self._read_loop, daemon=True)
+        self._thread.start()
+        self._warmup()
+        w, h = self.get_resolution()
+        logger.info(f'摄像头已切换: index={index}, 分辨率={w}x{h}')
+
     @classmethod
-    def get_instance(cls, index=None):
+    def get_instance(cls, index=None, backend=None):
         if cls._instance is None:
             idx = index if index is not None else CAMERA_INDEX
-            cls._instance = cls(idx)
+            be = backend if backend is not None else CAMERA_BACKEND
+            cls._instance = cls(idx, backend=be)
         return cls._instance
 
     @classmethod

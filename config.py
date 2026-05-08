@@ -1,5 +1,6 @@
 import os
 import logging
+import time
 
 # ─── 机械臂类型 ──────────────────────────────────────────────────────────────
 # 'wearm'   — 老款 WeArm（PWM 文本协议，CH340，115200 波特率）
@@ -28,23 +29,73 @@ def _auto_detect_serial_port() -> str:
             if 'USB' in p.description.upper() or 'SERIAL' in p.description.upper():
                 logging.info(f'回退匹配串口: {p.device} ({p.description})')
                 return p.device
+        logging.warning('未检测到 USB 串口设备')
     except ImportError:
-        pass
+        logging.warning('pyserial 未安装，串口自动检测不可用')
     except Exception as e:
         logging.warning(f'串口自动检测失败: {e}')
-    return 'COM4'
+    return ''
 
 SERIAL_PORT = _auto_detect_serial_port()
 
+
 # ─── 摄像头 ──────────────────────────────────────────────────────────────────
-# 0 = 系统默认摄像头（笔记本内置或第一个USB摄像头）
-CAMERA_INDEX = 0
+
+def _auto_detect_camera() -> tuple:
+    """自动检测摄像头，返回 (index, backend, probe_info)。
+
+    策略：
+    1. 遍历 index 0-4，用 DSHOW 后端打开
+    2. 对每个摄像头读帧测亮度，选亮度最高的（跳过全黑的红外/深度摄像头）
+    3. 同时缓存所有摄像头的分辨率信息，供 list_cameras 使用
+    """
+    import cv2
+    import numpy as np
+
+    best_idx, best_brightness = 0, -1
+    for idx in range(5):
+        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+        if not cap.isOpened():
+            continue
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        for _ in range(5):
+            cap.grab()
+        ret, frame = cap.read()
+        # 缓存分辨率
+        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        CAMERA_PROBE[idx] = f"{w}x{h}"
+        brightness = float(np.mean(frame)) if ret and frame is not None else 0
+        cap.release()
+        logging.info(f'DSHOW 摄像头 index={idx}: brightness={brightness:.0f}, resolution={w}x{h}')
+        if brightness > 10 and brightness > best_brightness:
+            best_idx, best_brightness = idx, brightness
+
+    if best_brightness > 0:
+        logging.info(f'自动选择摄像头: index={best_idx} (brightness={best_brightness:.0f})')
+        return best_idx, cv2.CAP_DSHOW
+
+    logging.warning('未检测到可用摄像头，使用默认 index=0')
+    return 0, None
+
+# 启动探测时缓存的摄像头分辨率 {index: "WxH"}
+CAMERA_PROBE: dict[int, str] = {}
+CAMERA_INDEX, CAMERA_BACKEND = _auto_detect_camera()
 
 # ─── 路径 ────────────────────────────────────────────────────────────────────
 BASE_DIR       = os.path.dirname(os.path.abspath(__file__))
-DB_PATH        = os.path.join(BASE_DIR, 'stamp_robot.db')
 AUDIT_IMAGE_DIR = os.path.join(BASE_DIR, 'audit_images')
 EXAMPLE_IMAGE_DIR = os.path.join(BASE_DIR, 'example_images')
+
+# ─── 数据库（MySQL）─────────────────────────────────────────────────────────
+DB_HOST     = 'localhost'
+DB_PORT     = 3306
+DB_USER     = 'stamp_robot'
+DB_PASSWORD = 'stamp_robot_pwd'
+DB_NAME     = 'stamp_robot'
+DATABASE_URL = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4'
 
 # ─── Web ─────────────────────────────────────────────────────────────────────
 SECRET_KEY = 'stamp_robot_mec202_secret'

@@ -1,40 +1,37 @@
-import sqlite3
 import json
 from datetime import datetime
-from config import DB_PATH
+from sqlalchemy import text
+from database.connection import get_db
 
 
 # ─── 模板 CRUD ─────────────────────────────────────────────────────────────────
 
 def create_template(name, code, description='', classification_keywords=None,
                     classification_regex='', is_system=0, sort_order=0) -> int:
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.execute(
-        '''INSERT INTO doc_templates
-           (name, code, description, is_system, classification_keywords,
-            classification_regex, created_at, updated_at, sort_order)
-           VALUES (?,?,?,?,?,?,?,?,?)''',
-        (
-            name, code, description, is_system,
-            json.dumps(classification_keywords or [], ensure_ascii=False),
-            classification_regex,
-            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            sort_order,
-        )
-    )
-    conn.commit()
-    tid = cur.lastrowid
-    conn.close()
+    with get_db() as conn:
+        r = conn.execute(text(
+            '''INSERT INTO doc_templates
+               (name, code, description, is_system, classification_keywords,
+                classification_regex, created_at, updated_at, sort_order)
+               VALUES (:name, :code, :desc, :is_sys, :kw, :re, :cat, :uat, :so)'''
+        ), {
+            'name': name, 'code': code, 'desc': description, 'is_sys': is_system,
+            'kw': json.dumps(classification_keywords or [], ensure_ascii=False),
+            're': classification_regex,
+            'cat': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'uat': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'so': sort_order,
+        })
+        tid = r.lastrowid
     assert tid is not None
     return tid
 
 
 def get_template_by_id(template_id: int) -> dict | None:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    row = conn.execute('SELECT * FROM doc_templates WHERE id=?', (template_id,)).fetchone()
-    conn.close()
+    with get_db() as conn:
+        row = conn.execute(text(
+            'SELECT * FROM doc_templates WHERE id=:id'
+        ), {'id': template_id}).mappings().one_or_none()
     if not row:
         return None
     tpl = dict(row)
@@ -44,10 +41,10 @@ def get_template_by_id(template_id: int) -> dict | None:
 
 
 def get_template_by_code(code: str) -> dict | None:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    row = conn.execute('SELECT * FROM doc_templates WHERE code=?', (code,)).fetchone()
-    conn.close()
+    with get_db() as conn:
+        row = conn.execute(text(
+            'SELECT * FROM doc_templates WHERE code=:code'
+        ), {'code': code}).mappings().one_or_none()
     if not row:
         return None
     tpl = dict(row)
@@ -57,10 +54,10 @@ def get_template_by_code(code: str) -> dict | None:
 
 
 def get_all_templates(with_fields=False) -> list:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute('SELECT * FROM doc_templates ORDER BY sort_order, id').fetchall()
-    conn.close()
+    with get_db() as conn:
+        rows = conn.execute(text(
+            'SELECT * FROM doc_templates ORDER BY sort_order, id'
+        )).mappings().all()
     result = []
     for row in rows:
         tpl = dict(row)
@@ -68,7 +65,6 @@ def get_all_templates(with_fields=False) -> list:
             tpl['fields'] = get_fields_for_template(tpl['id'])
             tpl['example_image'] = get_example_image(tpl['id'])
         else:
-            # 仅加载字段统计
             tpl['fields'] = get_fields_for_template(tpl['id'])
             tpl['field_stats'] = _compute_field_stats(tpl['fields'])
             tpl['example_image'] = get_example_image(tpl['id'])
@@ -94,26 +90,23 @@ def update_template(template_id: int, **kwargs) -> bool:
     if 'classification_keywords' in updates and isinstance(updates['classification_keywords'], list):
         updates['classification_keywords'] = json.dumps(updates['classification_keywords'], ensure_ascii=False)
     updates['updated_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    sets = ', '.join(f'{k}=?' for k in updates)
-    vals = list(updates.values()) + [template_id]
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(f'UPDATE doc_templates SET {sets} WHERE id=?', vals)
-    conn.commit()
-    conn.close()
+    sets = ', '.join(f'{k}=:{k}' for k in updates)
+    updates['id'] = template_id
+    with get_db() as conn:
+        conn.execute(text(f'UPDATE doc_templates SET {sets} WHERE id=:id'), updates)
     return True
 
 
 def delete_template(template_id: int) -> bool:
-    conn = sqlite3.connect(DB_PATH)
-    row = conn.execute('SELECT is_system FROM doc_templates WHERE id=?', (template_id,)).fetchone()
-    if not row or row[0]:
-        conn.close()
-        return False
-    conn.execute('DELETE FROM template_fields WHERE template_id=?', (template_id,))
-    conn.execute('DELETE FROM template_examples WHERE template_id=?', (template_id,))
-    conn.execute('DELETE FROM doc_templates WHERE id=?', (template_id,))
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        row = conn.execute(text(
+            'SELECT is_system FROM doc_templates WHERE id=:id'
+        ), {'id': template_id}).fetchone()
+        if not row or row[0]:
+            return False
+        conn.execute(text('DELETE FROM template_fields WHERE template_id=:id'), {'id': template_id})
+        conn.execute(text('DELETE FROM template_examples WHERE template_id=:id'), {'id': template_id})
+        conn.execute(text('DELETE FROM doc_templates WHERE id=:id'), {'id': template_id})
     return True
 
 
@@ -121,18 +114,18 @@ def delete_template(template_id: int) -> bool:
 
 def add_field(template_id, field_name, field_label, field_category='required',
               ocr_pattern='', validation_rule='', sort_order=0) -> int:
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.execute(
-        '''INSERT INTO template_fields
-           (template_id, field_name, field_label, field_category,
-            ocr_pattern, validation_rule, sort_order)
-           VALUES (?,?,?,?,?,?,?)''',
-        (template_id, field_name, field_label, field_category,
-         ocr_pattern, validation_rule, sort_order)
-    )
-    conn.commit()
-    fid = cur.lastrowid
-    conn.close()
+    with get_db() as conn:
+        r = conn.execute(text(
+            '''INSERT INTO template_fields
+               (template_id, field_name, field_label, field_category,
+                ocr_pattern, validation_rule, sort_order)
+               VALUES (:tid, :fn, :fl, :fc, :op, :vr, :so)'''
+        ), {
+            'tid': template_id, 'fn': field_name, 'fl': field_label,
+            'fc': field_category, 'op': ocr_pattern, 'vr': validation_rule,
+            'so': sort_order,
+        })
+        fid = r.lastrowid
     assert fid is not None
     return fid
 
@@ -143,74 +136,62 @@ def update_field(field_id: int, **kwargs) -> bool:
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return False
-    sets = ', '.join(f'{k}=?' for k in updates)
-    vals = list(updates.values()) + [field_id]
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(f'UPDATE template_fields SET {sets} WHERE id=?', vals)
-    conn.commit()
-    conn.close()
+    sets = ', '.join(f'{k}=:{k}' for k in updates)
+    updates['id'] = field_id
+    with get_db() as conn:
+        conn.execute(text(f'UPDATE template_fields SET {sets} WHERE id=:id'), updates)
     return True
 
 
 def delete_field(field_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute('DELETE FROM template_fields WHERE id=?', (field_id,))
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        conn.execute(text('DELETE FROM template_fields WHERE id=:id'), {'id': field_id})
 
 
 def get_fields_for_template(template_id: int) -> list:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        'SELECT * FROM template_fields WHERE template_id=? ORDER BY sort_order, id',
-        (template_id,)
-    ).fetchall()
-    conn.close()
+    with get_db() as conn:
+        rows = conn.execute(text(
+            'SELECT * FROM template_fields WHERE template_id=:id ORDER BY sort_order, id'
+        ), {'id': template_id}).mappings().all()
     return [dict(r) for r in rows]
 
 
 def replace_fields(template_id: int, fields_data: list):
-    """替换模板的所有字段。fields_data 是字段字典列表。"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute('DELETE FROM template_fields WHERE template_id=?', (template_id,))
-    for i, fd in enumerate(fields_data):
-        conn.execute(
-            '''INSERT INTO template_fields
-               (template_id, field_name, field_label, field_category,
-                ocr_pattern, validation_rule, sort_order)
-               VALUES (?,?,?,?,?,?,?)''',
-            (
-                template_id,
-                fd.get('field_name', ''),
-                fd.get('field_label', fd.get('field_name', '')),
-                fd.get('field_category', 'required'),
-                fd.get('ocr_pattern', ''),
-                fd.get('validation_rule', ''),
-                i,
-            )
-        )
-    conn.commit()
-    conn.close()
+    """替换模板的所有字段。"""
+    with get_db() as conn:
+        conn.execute(text(
+            'DELETE FROM template_fields WHERE template_id=:id'
+        ), {'id': template_id})
+        for i, fd in enumerate(fields_data):
+            conn.execute(text(
+                '''INSERT INTO template_fields
+                   (template_id, field_name, field_label, field_category,
+                    ocr_pattern, validation_rule, sort_order)
+                   VALUES (:tid, :fn, :fl, :fc, :op, :vr, :so)'''
+            ), {
+                'tid': template_id,
+                'fn': fd.get('field_name', ''),
+                'fl': fd.get('field_label', fd.get('field_name', '')),
+                'fc': fd.get('field_category', 'required'),
+                'op': fd.get('ocr_pattern', ''),
+                'vr': fd.get('validation_rule', ''),
+                'so': i,
+            })
 
 
 # ─── 分类辅助 ─────────────────────────────────────────────────────────────────
 
 def get_all_classification_rules() -> list:
-    """返回所有模板的分类规则，用于自动分类。"""
-    conn = sqlite3.connect(DB_PATH)
-    rows = conn.execute(
-        '''SELECT id, code, name, classification_keywords, classification_regex
-           FROM doc_templates WHERE is_system=1 OR code!='general'
-           ORDER BY sort_order'''
-    ).fetchall()
-    conn.close()
+    with get_db() as conn:
+        rows = conn.execute(text(
+            '''SELECT id, code, name, classification_keywords, classification_regex
+               FROM doc_templates WHERE is_system=1 OR code!='general'
+               ORDER BY sort_order'''
+        )).fetchall()
     result = []
     for row in rows:
         result.append({
-            'id': row[0],
-            'code': row[1],
-            'name': row[2],
+            'id': row[0], 'code': row[1], 'name': row[2],
             'keywords': json.loads(row[3]) if row[3] else [],
             'regex': row[4] or '',
         })
@@ -220,30 +201,39 @@ def get_all_classification_rules() -> list:
 # ─── 示例图片 ─────────────────────────────────────────────────────────────────
 
 def set_example_image(template_id: int, image_path: str):
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        '''INSERT INTO template_examples (template_id, image_path, generated_at)
-           VALUES (?,?,?)
-           ON CONFLICT(template_id) DO UPDATE SET image_path=?, generated_at=?''',
-        (template_id, image_path, datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-         image_path, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    )
-    conn.commit()
-    conn.close()
+    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_db() as conn:
+        conn.execute(text(
+            '''INSERT INTO template_examples (template_id, image_path, generated_at)
+               VALUES (:tid, :img, :ts)
+               ON DUPLICATE KEY UPDATE image_path=VALUES(image_path), generated_at=VALUES(generated_at)'''
+        ), {'tid': template_id, 'img': image_path, 'ts': ts})
 
 
 def get_example_image(template_id: int) -> str | None:
-    conn = sqlite3.connect(DB_PATH)
-    row = conn.execute(
-        'SELECT image_path FROM template_examples WHERE template_id=?', (template_id,)
-    ).fetchone()
-    conn.close()
+    with get_db() as conn:
+        row = conn.execute(text(
+            'SELECT image_path FROM template_examples WHERE template_id=:id'
+        ), {'id': template_id}).fetchone()
     return row[0] if row else None
 
 
 def get_type_name_map() -> dict:
-    """返回 {code: name} 映射，用于模板显示。"""
-    conn = sqlite3.connect(DB_PATH)
-    rows = conn.execute('SELECT code, name FROM doc_templates').fetchall()
-    conn.close()
+    with get_db() as conn:
+        rows = conn.execute(text('SELECT code, name FROM doc_templates')).fetchall()
     return {r[0]: r[1] for r in rows}
+
+
+def get_ocr_patterns(template_code: str) -> list[dict]:
+    """返回指定模板的所有字段及其 ocr_pattern。"""
+    with get_db() as conn:
+        row = conn.execute(text(
+            'SELECT id FROM doc_templates WHERE code=:code'
+        ), {'code': template_code}).fetchone()
+        if not row:
+            return []
+        rows = conn.execute(text(
+            'SELECT field_name, ocr_pattern, field_category '
+            'FROM template_fields WHERE template_id=:id ORDER BY sort_order, id'
+        ), {'id': row[0]}).fetchall()
+    return [{'field_name': r[0], 'ocr_pattern': r[1], 'field_category': r[2]} for r in rows]

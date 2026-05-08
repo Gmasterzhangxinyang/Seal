@@ -4,6 +4,8 @@ os.environ['FLAGS_use_mkldnn'] = '0'
 import re
 from paddleocr import PaddleOCR
 
+from database.template import get_ocr_patterns
+
 _ocr_engine = None
 
 
@@ -152,3 +154,30 @@ def find_stamp_target_pixel(boxes: list, keywords: list | None = None) -> tuple 
         max_y = max(b['center'][1] for b in boxes)
         return (int(max_x * 0.82), int(max_y * 0.85))
     return None
+
+
+def extract_fields_by_template(full_text: str, template_code: str) -> dict:
+    """根据模板配置的 ocr_pattern 动态提取字段。
+
+    对模板中每个有 ocr_pattern 的字段，用其正则从 full_text 中提取值。
+    同时保留 _parse_fields 的硬编码结果作为兜底。
+    """
+    # 先用硬编码正则做兜底提取
+    fields = _parse_fields(full_text)
+
+    # 再用模板 pattern 覆盖/补充
+    patterns = get_ocr_patterns(template_code)
+    for p in patterns:
+        name = p['field_name']
+        pattern = p.get('ocr_pattern', '')
+        if not pattern:
+            continue
+        try:
+            m = re.search(pattern, full_text)
+            if m:
+                # 取第一个捕获组，否则取整个匹配
+                fields[name] = m.group(1) if m.lastindex else m.group(0)
+        except re.error:
+            pass
+
+    return fields

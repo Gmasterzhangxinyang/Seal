@@ -3,10 +3,10 @@ os.environ['PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK'] = 'True'
 os.environ['FLAGS_use_mkldnn'] = '0'
 
 import logging
-import sqlite3
 import cv2
 import numpy as np
-from vision.ocr import extract_fields, extract_fields_with_positions
+from sqlalchemy import text
+from vision.ocr import extract_fields, extract_fields_with_positions, extract_fields_by_template
 from vision.qr_scanner import scan_qr
 from vision.page_counter import check_page_completeness
 from vision.classifier import classify_document
@@ -17,7 +17,8 @@ from hardware.kinematics import compute_stamp_pwm
 from database.audit import log_action
 from database import review_queue as rq
 from database.template import get_template_by_code
-from config import DB_PATH, PAPER_DETECTION_ENABLED
+from database.connection import get_db
+from config import PAPER_DETECTION_ENABLED
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,11 @@ class DocumentProcessor:
             else:
                 doc_type = 'pending'
                 logger.info(f'[{operator_id}] 无法自动分类，标记为 pending')
+
+        # 确定模板后，用模板的 ocr_pattern 重新提取字段
+        if doc_type != 'pending':
+            fields = extract_fields_by_template(full_text, doc_type)
+            logger.info(f'[{operator_id}] 模板提取字段: {fields}')
 
         if doc_type == 'pending':
             pending_msg = '无法自动识别文件类型，请管理员手动分类'
@@ -138,13 +144,10 @@ class DocumentProcessor:
         from vision.comparator import verify_document
         from vision.ocr import extract_fields_with_positions, find_stamp_target
 
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            'SELECT * FROM review_queue WHERE id=? AND status="approved"',
-            (review_id,)
-        ).fetchone()
-        conn.close()
+        with get_db() as conn:
+            row = conn.execute(text(
+                'SELECT * FROM review_queue WHERE id=:id AND status="approved"'
+            ), {'id': review_id}).mappings().one_or_none()
 
         if not row:
             return {'status': 'error', 'message': '记录不存在或未批准'}
@@ -256,7 +259,8 @@ if __name__ == '__main__':
 
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-    from database.models import init_db, seed_demo_data, seed_default_templates
+    from database.models import init_db
+    from database.seed import seed_demo_data, seed_default_templates
     init_db()
     seed_demo_data()
     seed_default_templates()
@@ -264,7 +268,5 @@ if __name__ == '__main__':
     print('演示账号: admin / admin123')
     print()
 
-    from web.app import app
-    from config import WEB_HOST, WEB_PORT
-    print(f'Web 服务启动中... 访问 http://127.0.0.1:{WEB_PORT}')
-    app.run(host=WEB_HOST, port=WEB_PORT, debug=False)
+    from api.main import start
+    start()
