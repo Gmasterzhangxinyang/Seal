@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green -p \"[{name}]\" \"python -m api.main\" \"npm --prefix frontend run dev\"",
+    "dev:backend": "python -m api.main",
+    "dev:frontend": "npm --prefix frontend run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
