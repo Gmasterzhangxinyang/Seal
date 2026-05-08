@@ -333,6 +333,9 @@ def admin_template_new():
         classification_regex=regex,
     )
 
+    # 保存盖章配置
+    _save_stamp_config(tid, request.form)
+
     # 收集字段
     _save_fields(tid, request.form)
 
@@ -372,6 +375,9 @@ def admin_template_edit(tid):
     tpl_db.update_template(tid, name=name, description=description,
                            classification_keywords=keywords,
                            classification_regex=regex)
+
+    # 更新盖章配置
+    _save_stamp_config(tid, request.form)
 
     # 替换字段
     _save_fields(tid, request.form, replace=True)
@@ -531,6 +537,20 @@ def _save_fields(template_id, form_data, replace=False):
         for i, fd in enumerate(fields):
             tpl_db.add_field(template_id, fd['field_name'], fd['field_label'],
                              fd['field_category'], fd['ocr_pattern'], fd['validation_rule'], i)
+
+
+def _save_stamp_config(template_id, form_data):
+    """保存模板盖章配置到数据库"""
+    requires = form_data.get('requires_stamp', '1')
+    stamp_pos = form_data.get('stamp_position', '').strip()
+    stamp_kw = form_data.get('stamp_keywords', '').strip()
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        'UPDATE doc_templates SET requires_stamp=?, stamp_position=?, stamp_keywords=? WHERE id=?',
+        (int(requires), stamp_pos, stamp_kw, template_id)
+    )
+    conn.commit()
+    conn.close()
 
 
 # ─── 启动 ─────────────────────────────────────────────────────────────────────

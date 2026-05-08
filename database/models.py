@@ -127,6 +127,25 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # 模板盖章配置
+    try:
+        c.execute("ALTER TABLE doc_templates ADD COLUMN requires_stamp INTEGER DEFAULT 1")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        c.execute("ALTER TABLE doc_templates ADD COLUMN stamp_position TEXT DEFAULT ''")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        c.execute("ALTER TABLE doc_templates ADD COLUMN stamp_keywords TEXT DEFAULT ''")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
     conn.close()
 
 
@@ -180,6 +199,9 @@ def seed_default_templates():
             'sort_order': 1,
             'keywords': ['请假', '事假', '病假', '公假', '请假条', '请假申请', '请假类型', '请假天数'],
             'regex': '请假',
+            'requires_stamp': 1,
+            'stamp_position': '0.82,0.85',
+            'stamp_keywords': '盖章处,审批人,辅导员意见',
             'fields': [
                 ('姓名', '姓名', 'required', r'姓\s*名\s*[：:]\s*(\S{2,5})',
                  '{"regex": "\\S{2,5}", "min_length": 2, "max_length": 5}'),
@@ -203,6 +225,9 @@ def seed_default_templates():
             'sort_order': 2,
             'keywords': ['报销', '费用', '金额', '合计', '总计', '用途', '报销单', '报销申请'],
             'regex': '报销',
+            'requires_stamp': 1,
+            'stamp_position': '0.80,0.85',
+            'stamp_keywords': '盖章处,审批人,财务审核',
             'fields': [
                 ('姓名', '姓名', 'required', r'姓\s*名\s*[：:]\s*(\S{2,5})',
                  '{"regex": "\\S{2,5}", "min_length": 2, "max_length": 5}'),
@@ -226,6 +251,9 @@ def seed_default_templates():
             'sort_order': 3,
             'keywords': ['证明', '在读', '成绩', '学籍', '毕业', '证明申请'],
             'regex': '证明',
+            'requires_stamp': 1,
+            'stamp_position': '0.75,0.80',
+            'stamp_keywords': '盖章处,学院公章,教务处',
             'fields': [
                 ('姓名', '姓名', 'required', r'姓\s*名\s*[：:]\s*(\S{2,5})',
                  '{"regex": "\\S{2,5}", "min_length": 2, "max_length": 5}'),
@@ -247,6 +275,9 @@ def seed_default_templates():
             'sort_order': 99,
             'keywords': [],
             'regex': '',
+            'requires_stamp': 1,
+            'stamp_position': '0.82,0.85',
+            'stamp_keywords': '盖章处,签名,签字',
             'fields': [
                 ('姓名', '姓名', 'required', r'姓\s*名\s*[：:]\s*(\S{2,5})',
                  '{"regex": "\\S{2,5}"}'),
@@ -257,10 +288,20 @@ def seed_default_templates():
         },
     ]
 
+    conn = sqlite3.connect(DB_PATH)
+
     for tpl in templates:
         # 检查是否已存在
         from database.template import get_template_by_code
-        if get_template_by_code(tpl['code']):
+        existing = get_template_by_code(tpl['code'])
+        if existing:
+            # 更新盖章配置（如果字段不存在则补充）
+            conn.execute(
+                'UPDATE doc_templates SET requires_stamp=?, stamp_position=?, stamp_keywords=? WHERE id=?',
+                (tpl.get('requires_stamp', 1), tpl.get('stamp_position', ''),
+                 tpl.get('stamp_keywords', ''), existing['id'])
+            )
+            conn.commit()
             continue
         tid = create_template(
             name=tpl['name'],
@@ -271,5 +312,14 @@ def seed_default_templates():
             is_system=tpl['is_system'],
             sort_order=tpl['sort_order'],
         )
+        # 写入盖章配置
+        conn.execute(
+            'UPDATE doc_templates SET requires_stamp=?, stamp_position=?, stamp_keywords=? WHERE id=?',
+            (tpl.get('requires_stamp', 1), tpl.get('stamp_position', ''),
+             tpl.get('stamp_keywords', ''), tid)
+        )
+        conn.commit()
         for i, fd in enumerate(tpl['fields']):
             add_field(tid, fd[0], fd[1], fd[2], fd[3], fd[4], i)
+
+    conn.close()

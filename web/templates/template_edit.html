@@ -100,6 +100,34 @@
     </div>
   </div>
 
+  <!-- 盖章配置 -->
+  <div class="section-title">盖章配置</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>是否需要盖章</label>
+      <select name="requires_stamp">
+        <option value="1" {% if not template or template.requires_stamp != 0 %}selected{% endif %}>需要盖章</option>
+        <option value="0" {% if template and template.requires_stamp == 0 %}selected{% endif %}>不需要盖章</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>盖章关键词</label>
+      <input type="text" name="stamp_keywords"
+             value="{{ template.stamp_keywords if template and template.stamp_keywords else '' }}"
+             placeholder="用英文逗号分隔，如：盖章处,审批人">
+      <div class="help-text">OCR 检测到这些关键词时在该位置盖章</div>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>默认盖章位置</label>
+      <input type="text" name="stamp_position"
+             value="{{ template.stamp_position if template and template.stamp_position else '' }}"
+             placeholder="0.82,0.85">
+      <div class="help-text">归一化坐标 (x,y)，(0,0)=左上角，(1,1)=右下角。OCR 未检测到关键词时使用此位置</div>
+    </div>
+  </div>
+
   <!-- 字段定义 -->
   <div class="section-title">字段定义</div>
   <div style="overflow-x:auto;">

@@ -13,8 +13,10 @@ from vision.classifier import classify_document
 from validator.rules import DocumentValidator
 from hardware.arm import create_controller
 from hardware.arm import compute_position_at_xy, load_calibration
+from hardware.kinematics import compute_stamp_pwm
 from database.audit import log_action
 from database import review_queue as rq
+from database.template import get_template_by_code
 from config import DB_PATH, PAPER_DETECTION_ENABLED
 
 logger = logging.getLogger(__name__)
@@ -121,7 +123,7 @@ class DocumentProcessor:
 
         # 盖章
         logger.info(f'[{operator_id}] 验证通过，开始盖章')
-        self._do_stamp(before_img, boxes)
+        self._do_stamp(before_img, boxes, doc_type)
 
         after_img = self.camera.capture_timestamped('after')
         log_action(operator_id, doc_type, qr_content, fields,
@@ -171,7 +173,7 @@ class DocumentProcessor:
             }
 
         logger.info(f'[{operator_id}] 复审验证通过，开始盖章')
-        self._do_stamp(new_img, boxes)
+        self._do_stamp(new_img, boxes, row['doc_type'])
 
         after_img = self.camera.capture_timestamped('after')
         log_action(operator_id, row['doc_type'] or 'review', None,
@@ -181,21 +183,65 @@ class DocumentProcessor:
         logger.info(f'[{operator_id}] 复审盖章完成')
         return {'status': 'approved', 'errors': [], 'warnings': []}
 
-    def _do_stamp(self, image_path: str, boxes: list | None = None):
-        """执行盖章，优先使用标定数据精确定位"""
+    def _do_stamp(self, image_path: str, boxes: list | None = None,
+                  doc_type: str | None = None):
+        """执行盖章，按优先级尝试定位: IK → 标定插值 → 模板默认 → 回退"""
         cal = load_calibration()
+        img = cv2.imread(image_path)
+        img_h, img_w = img.shape[:2] if img is not None else (0, 0)
+
+        # 获取模板盖章配置
+        tpl = get_template_by_code(doc_type) if doc_type else None
+        requires_stamp = tpl.get('requires_stamp', 1) if tpl else 1
+        if not requires_stamp:
+            logger.info(f'模板 {doc_type} 不需要盖章，跳过')
+            return
+
+        # 从模板获取自定义盖章关键词
+        stamp_keywords = None
+        if tpl and tpl.get('stamp_keywords'):
+            stamp_keywords = [k.strip() for k in tpl['stamp_keywords'].split(',') if k.strip()]
+
+        # 方案 1: IK 求解（OCR 检测关键词 → 像素坐标 → 世界坐标 → 逆运动学）
+        if boxes:
+            from vision.ocr import find_stamp_target_pixel
+            stamp_pos = find_stamp_target_pixel(boxes, keywords=stamp_keywords)
+            if stamp_pos and cal:
+                pwms = compute_stamp_pwm(stamp_pos[0], stamp_pos[1], img_w, img_h, cal)
+                if pwms:
+                    logger.info(f'IK 盖章 PWM: {pwms}')
+                    self.arm.stamp_at(pwms)
+                    return
+
+        # 方案 2: 标定数据 + 双线性插值
         if cal.get('corners') and boxes:
             from vision.ocr import find_stamp_target
-            stamp_pos = find_stamp_target(boxes)
+            stamp_pos = find_stamp_target(boxes, keywords=stamp_keywords)
             if stamp_pos:
-                logger.info(f'盖章位置 (归一化): x={stamp_pos[0]:.3f}, y={stamp_pos[1]:.3f}')
+                logger.info(f'标定盖章位置 (归一化): x={stamp_pos[0]:.3f}, y={stamp_pos[1]:.3f}')
                 pwms = compute_position_at_xy(stamp_pos[0], stamp_pos[1], cal)
-                logger.info(f'盖章位置值: {pwms}')
+                logger.info(f'标定盖章 PWM: {pwms}')
                 self.arm.stamp_at(pwms)
                 return
-            logger.warning('未找到盖章目标位置，使用默认位置')
-        else:
-            logger.info(f'标定/boxes 状态: corners={bool(cal.get("corners"))}, boxes={bool(boxes)}')
+
+        # 方案 3: 模板预设盖章位置 + IK
+        if tpl and tpl.get('stamp_position'):
+            try:
+                parts = tpl['stamp_position'].split(',')
+                nx, ny = float(parts[0]), float(parts[1])
+                # 转换为像素坐标
+                px, py = int(nx * img_w), int(ny * img_h)
+                logger.info(f'模板预设盖章位置: ({nx:.2f},{ny:.2f}) → 像素({px},{py})')
+                if cal:
+                    pwms = compute_stamp_pwm(px, py, img_w, img_h, cal)
+                    if pwms:
+                        self.arm.stamp_at(pwms)
+                        return
+            except Exception as e:
+                logger.warning(f'模板盖章位置解析失败: {e}')
+
+        # 方案 4: 回退到默认位置
+        logger.warning('所有定位方案均失败，使用默认位置盖章')
         self.arm.stamp_at({0: self.arm.neutral_value, 2: self.arm.neutral_value})
 
     def shutdown(self):

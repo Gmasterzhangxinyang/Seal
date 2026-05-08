@@ -8,14 +8,51 @@ from config import CAMERA_INDEX, AUDIT_IMAGE_DIR
 
 logger = logging.getLogger(__name__)
 
+# 目标分辨率
+_TARGET_W, _TARGET_H = 1920, 1080
+# 支持的四字符编码格式（优先 MJPG，USB 摄像头高分辨率通常需要）
+_FOURCC_OPTIONS = [
+    cv2.VideoWriter_fourcc(*'MJPG'),
+    cv2.VideoWriter_fourcc(*'YUY2'),
+]
 
-def open_camera(index):
-    """打开摄像头（仅用于枚举列表）"""
-    cap = cv2.VideoCapture(index)
-    if not cap.isOpened():
-        return None
-    cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
-    return cap
+
+def open_camera(index, retries=3, retry_delay=1.0):
+    """打开摄像头并设置最高分辨率，支持重试和格式协商。"""
+    for attempt in range(1, retries + 1):
+        cap = cv2.VideoCapture(index)
+        if not cap.isOpened():
+            logger.warning(f'摄像头打开失败 (尝试 {attempt}/{retries})')
+            if attempt < retries:
+                time.sleep(retry_delay)
+            continue
+
+        # 尝试设置格式和分辨率
+        best_w, best_h = 0, 0
+        for fourcc in _FOURCC_OPTIONS:
+            cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, _TARGET_W)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, _TARGET_H)
+            # 读取若干帧让设置生效
+            for _ in range(3):
+                cap.grab()
+            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            if w * h > best_w * best_h:
+                best_w, best_h = w, h
+            if w >= _TARGET_W and h >= _TARGET_H:
+                break  # 已达到目标
+
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, best_w)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, best_h)
+        cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+        # 降低缓冲区大小以减少延迟
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+        logger.info(f'摄像头已打开: index={index}, 分辨率={best_w}x{best_h} (尝试 {attempt})')
+        return cap
+
+    return None
 
 
 class SharedCamera:
@@ -26,19 +63,31 @@ class SharedCamera:
         self._index = index
         self._cap = open_camera(index)
         if self._cap is None:
-            raise RuntimeError(f'无法打开摄像头（index={index}）')
-        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            raise RuntimeError(f'无法打开摄像头（index={index}），请检查连接')
         self._frame_lock = threading.Lock()
         self._latest_frame = None
         self._running = True
+        self._error_count = 0
         self._thread = threading.Thread(target=self._read_loop, daemon=True)
         self._thread.start()
-        for _ in range(5):
-            time.sleep(0.2)
-        w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        h = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        # 预热：等待若干帧让摄像头稳定
+        self._warmup()
+        w, h = self.get_resolution()
         logger.info(f'摄像头已启动: index={index}, 分辨率={w}x{h}')
+
+    def _warmup(self, frames=10, timeout=5.0):
+        """预热摄像头，丢弃前几帧以获得稳定图像。"""
+        deadline = time.time() + timeout
+        count = 0
+        while count < frames and time.time() < deadline:
+            ret, _ = self._cap.read()
+            if ret:
+                count += 1
+            else:
+                time.sleep(0.05)
+        # 等待后台线程获取至少一帧
+        while self._latest_frame is None and time.time() < deadline:
+            time.sleep(0.05)
 
     def _read_loop(self):
         while self._running:
@@ -46,8 +95,29 @@ class SharedCamera:
             if ret:
                 with self._frame_lock:
                     self._latest_frame = frame
+                self._error_count = 0
             else:
-                time.sleep(0.01)
+                self._error_count += 1
+                if self._error_count > 30:
+                    logger.error('摄像头连续读取失败，尝试重新初始化')
+                    self._reconnect()
+                else:
+                    time.sleep(0.01)
+
+    def _reconnect(self):
+        """摄像头断连后自动重连。"""
+        try:
+            self._cap.release()
+        except Exception:
+            pass
+        time.sleep(1.0)
+        cap = open_camera(self._index, retries=2)
+        if cap is not None:
+            self._cap = cap
+            self._error_count = 0
+            logger.info('摄像头重连成功')
+        else:
+            logger.error('摄像头重连失败')
 
     def get_frame(self):
         """返回最新帧副本（给视频流用）"""
@@ -77,6 +147,10 @@ class SharedCamera:
         w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         return w, h
+
+    def is_healthy(self) -> bool:
+        """检查摄像头是否正常工作。"""
+        return self._latest_frame is not None and self._error_count < 10
 
     @classmethod
     def get_instance(cls, index=None):

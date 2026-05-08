@@ -122,3 +122,33 @@ def find_stamp_target(boxes: list, keywords: list | None = None) -> tuple | None
                 return (stamp_x / max_x, stamp_y / max_y)
 
     return (0.82, 0.85)
+
+
+def find_stamp_target_pixel(boxes: list, keywords: list | None = None) -> tuple | None:
+    """从 OCR 检测框中找到盖章目标的像素坐标。
+
+    返回 (cx, cy) 像素坐标，用于 IK 求解。
+    """
+    if keywords is None:
+        keywords = ['盖章处', '审批人', '签名', '签字', '审核人', '负责人']
+
+    if not boxes:
+        return None
+
+    for kw in keywords:
+        for b in boxes:
+            if kw in b['text']:
+                cx, cy = b['center']
+                xs = [p[0] for p in b['box']]
+                box_w = max(xs) - min(xs)
+                if kw == '盖章处':
+                    return (cx, cy)
+                else:
+                    return (cx + int(box_w * 0.5) + 60, cy)
+
+    # 默认位置：右下角区域
+    if boxes:
+        max_x = max(b['center'][0] for b in boxes)
+        max_y = max(b['center'][1] for b in boxes)
+        return (int(max_x * 0.82), int(max_y * 0.85))
+    return None
