@@ -41,6 +41,7 @@ export interface AuditLog {
   result: string
   errors: string | null
   fields: string | null
+  ocr_text: string | null
   before_image: string | null
   after_image: string | null
 }
@@ -51,9 +52,11 @@ export interface ReviewItem {
   operator_id: string
   doc_type: string
   doc_type_name?: string
-  status: string
-  image_path: string | null
+  doc_fields: string | null
   ocr_text: string | null
+  warnings: string | null
+  image_path: string | null
+  status: string
   errors: string | null
 }
 

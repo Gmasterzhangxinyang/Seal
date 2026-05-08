@@ -35,6 +35,10 @@ def seed_demo_data():
                 'INSERT IGNORE INTO users (username, password_hash, email, role, created_at) '
                 'VALUES (:u, :pw, :e, :r, :t)'
             ), u)
+            conn.execute(text(
+                'UPDATE users SET email=:e, created_at=:t '
+                'WHERE username=:u AND (email IS NULL OR email = \'\' OR created_at IS NULL OR created_at = \'\')'
+            ), u)
 
 
 def seed_default_templates():

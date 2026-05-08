@@ -64,17 +64,20 @@ export function UsersPage() {
               const isSelf = u.username === currentUser?.username
               return (
                 <tr key={u.username} className="border-b last:border-0 hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium">{u.username}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {u.username}
+                    {isSelf && <span className="ml-2 text-xs text-muted-foreground">(当前)</span>}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">{u.email || '-'}</td>
                   <td className="px-4 py-3">
                     <span className="inline-block px-2 py-0.5 rounded text-xs bg-primary/10 text-primary">
                       {roleLabel[u.role] || u.role}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{u.created_at}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{u.created_at || '-'}</td>
                   <td className="px-4 py-3 text-right">
                     {isSelf ? (
-                      <span className="text-xs text-muted-foreground">当前用户</span>
+                      <span className="text-xs text-muted-foreground">-</span>
                     ) : (
                       <button
                         onClick={() => handleDelete(u.username)}

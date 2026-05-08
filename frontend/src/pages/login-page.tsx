@@ -24,6 +24,17 @@ export function LoginPage() {
     }
   }
 
+  const demoUsers = [
+    { user: 'admin', pw: 'admin123', label: '管理员' },
+    { user: 'operator1', pw: 'op123', label: '操作员' },
+    { user: 'reviewer1', pw: 'reviewer123', label: '复审员' },
+  ]
+
+  const fillDemo = (u: string, p: string) => {
+    setUsername(u)
+    setPassword(p)
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="w-full max-w-sm bg-card rounded-xl shadow-lg p-8">
@@ -66,6 +77,22 @@ export function LoginPage() {
           没有账号？{' '}
           <Link to="/register" className="text-[#457b9d] hover:underline">注册</Link>
         </p>
+
+        {/* Demo 用户快捷入口 */}
+        <div className="mt-5 pt-4 border-t">
+          <p className="text-xs text-muted-foreground text-center mb-2">演示账号</p>
+          <div className="flex gap-2">
+            {demoUsers.map((d) => (
+              <button
+                key={d.user}
+                onClick={() => fillDemo(d.user, d.pw)}
+                className="flex-1 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition text-gray-600"
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

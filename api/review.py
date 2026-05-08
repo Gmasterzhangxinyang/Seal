@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -66,15 +68,23 @@ def pending_stamps(session: dict = Depends(get_session)):
     return {"items": result}
 
 
+def _basename(path):
+    return os.path.basename(path) if path else None
+
+
 def _format_review_item(item, type_map):
+    # columns: id, timestamp, operator_id, doc_type, doc_fields,
+    #          ocr_text, warnings, image_path, status, ...
     return {
         "id": item[0],
         "timestamp": item[1],
         "operator_id": item[2],
         "doc_type": item[3],
         "doc_type_name": type_map.get(item[3], item[3] or "通用"),
-        "status": item[4],
-        "image_path": item[5],
-        "ocr_text": item[6],
-        "errors": item[7],
+        "doc_fields": item[4],
+        "ocr_text": item[5],
+        "warnings": item[6],
+        "image_path": _basename(item[7]),
+        "status": item[8],
+        "errors": item[6],
     }

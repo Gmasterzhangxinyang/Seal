@@ -7,7 +7,8 @@
       "Read(//c/Users/28491/Downloads/8.22arduino机械臂/05-机械臂逆运动学简介//**)",
       "Bash(mypy --version)",
       "mcp__exa__web_fetch_exa",
-      "Bash(mypy *)"
+      "Bash(mypy *)",
+      "Bash(mysql *)"
     ]
   }
 }

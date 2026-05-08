@@ -46,6 +46,8 @@ def open_camera(index, retries=3, retry_delay=1.0, backend=None):
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, best_w)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, best_h)
         cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3)   # 3 = 自动曝光（光圈优先）
+        cap.set(cv2.CAP_PROP_AUTO_WB, 1)          # 自动白平衡
         try:
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         except Exception:
@@ -78,7 +80,7 @@ class SharedCamera:
         w, h = self.get_resolution()
         logger.info(f'摄像头已启动: index={index}, 分辨率={w}x{h}')
 
-    def _warmup(self, frames=10, timeout=5.0):
+    def _warmup(self, frames=30, timeout=8.0):
         """预热摄像头，丢弃前几帧以获得稳定图像。"""
         deadline = time.time() + timeout
         count = 0
@@ -111,15 +113,22 @@ class SharedCamera:
 
     def _reconnect(self):
         """摄像头断连后自动重连。"""
+        self._running = False
+        if self._thread.is_alive():
+            self._thread.join(timeout=3)
         try:
             self._cap.release()
         except Exception:
             pass
         time.sleep(1.0)
-        cap = open_camera(self._index, retries=2, backend=self._backend)
+        cap = open_camera(self._index, retries=3, backend=self._backend)
         if cap is not None:
             self._cap = cap
             self._error_count = 0
+            self._running = True
+            self._thread = threading.Thread(target=self._read_loop, daemon=True)
+            self._thread.start()
+            self._warmup()
             logger.info('摄像头重连成功')
         else:
             logger.error('摄像头重连失败')
