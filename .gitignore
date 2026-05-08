@@ -29,3 +29,6 @@ env/
 .vscode/
 .idea/
 *.swp
+
+# 参考资料和图纸
+reference/
