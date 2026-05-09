@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from api.deps import get_session
 from vision.camera import SharedCamera
-from config import CAMERA_INDEX, CAMERA_BACKEND, CAMERA_PROBE
+from config import CAMERA_INDEX, CAMERA_BACKEND, CAMERA_PROBE, CAMERA_BACKENDS
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +40,13 @@ def select_camera(body: SelectRequest, session: dict = Depends(get_session)):
     global _current_index, _current_backend
     with _camera_lock:
         old_index = _current_index
+        old_backend = _current_backend
         try:
-            SharedCamera.get_instance().switch(body.index, backend=cv2.CAP_DSHOW)
+            # 使用探测阶段为该摄像头测出的最佳后端
+            be = CAMERA_BACKENDS.get(body.index, cv2.CAP_MSMF)
+            SharedCamera.get_instance().switch(body.index, backend=be)
             _current_index = body.index
-            _current_backend = cv2.CAP_DSHOW
+            _current_backend = be
         except Exception as e:
             logger.error(f"切换摄像头失败: {e}")
             try:

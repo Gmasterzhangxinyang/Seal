@@ -17,23 +17,38 @@ _FOURCC_OPTIONS = [
 ]
 
 
-def open_camera(index, retries=3, retry_delay=1.0, backend=None):
-    """打开摄像头并设置最高分辨率，支持重试和格式协商。"""
+def _set_exposure(cap):
+    """设置曝光/白平衡/自动对焦并记录结果。"""
+    results = {}
+    for prop, val, name in [
+        (cv2.CAP_PROP_AUTO_EXPOSURE, 3, 'AUTO_EXPOSURE'),
+        (cv2.CAP_PROP_AUTO_WB, 1, 'AUTO_WB'),
+        (cv2.CAP_PROP_AUTOFOCUS, 1, 'AUTOFOCUS'),
+    ]:
+        ok = cap.set(prop, val)
+        results[name] = ok
+        if not ok:
+            logger.warning(f'cap.set({name}, {val}) 返回 False，摄像头可能不支持')
+    logger.info(f'曝光设置结果: {results}')
+
+
+def _try_open(index, backend, retries, retry_delay):
+    """尝试用指定后端打开摄像头，返回 (cap, w, h) 或 (None, 0, 0)。"""
     for attempt in range(1, retries + 1):
         cap = cv2.VideoCapture(index, backend) if backend else cv2.VideoCapture(index)
         if not cap.isOpened():
-            logger.warning(f'摄像头打开失败 (尝试 {attempt}/{retries})')
+            logger.warning(f'摄像头打开失败 backend={backend} (尝试 {attempt}/{retries})')
             if attempt < retries:
                 time.sleep(retry_delay)
             continue
 
-        # 尝试设置格式和分辨率
+        _set_exposure(cap)
+
         best_w, best_h = 0, 0
         for fourcc in _FOURCC_OPTIONS:
             cap.set(cv2.CAP_PROP_FOURCC, fourcc)
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, _TARGET_W)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, _TARGET_H)
-            # 读取若干帧让设置生效
             for _ in range(3):
                 cap.grab()
             w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -41,21 +56,44 @@ def open_camera(index, retries=3, retry_delay=1.0, backend=None):
             if w * h > best_w * best_h:
                 best_w, best_h = w, h
             if w >= _TARGET_W and h >= _TARGET_H:
-                break  # 已达到目标
+                break
 
+        # 验证能读到帧（MSMF 有时 open 成功但 grab 失败）
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, best_w)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, best_h)
-        cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
-        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3)   # 3 = 自动曝光（光圈优先）
-        cap.set(cv2.CAP_PROP_AUTO_WB, 1)          # 自动白平衡
+        _set_exposure(cap)
+        ret, _ = cap.read()
+        if not ret:
+            logger.warning(f'摄像头 index={index} backend={backend} 无法读帧，尝试其他后端')
+            cap.release()
+            continue
+
         try:
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         except Exception:
             pass
 
-        logger.info(f'摄像头已打开: index={index}, 分辨率={best_w}x{best_h} (尝试 {attempt})')
-        return cap
+        logger.info(f'摄像头已打开: index={index}, backend={backend}, 分辨率={best_w}x{best_h}')
+        return cap, best_w, best_h
 
+    return None, 0, 0
+
+
+def open_camera(index, retries=3, retry_delay=1.0, backend=None):
+    """打开摄像头，优先使用指定后端，失败时自动回退。"""
+    # 指定后端优先，回退到另一个
+    backends = [backend] if backend else [None]
+    if backend == cv2.CAP_MSMF:
+        backends.append(cv2.CAP_DSHOW)
+    elif backend == cv2.CAP_DSHOW:
+        backends.append(cv2.CAP_MSMF)
+
+    for be in backends:
+        cap, w, h = _try_open(index, be, retries, retry_delay)
+        if cap is not None:
+            return cap
+
+    logger.error(f'所有后端均无法打开摄像头 index={index}')
     return None
 
 
@@ -80,7 +118,7 @@ class SharedCamera:
         w, h = self.get_resolution()
         logger.info(f'摄像头已启动: index={index}, 分辨率={w}x{h}')
 
-    def _warmup(self, frames=30, timeout=8.0):
+    def _warmup(self, frames=60, timeout=8.0):
         """预热摄像头，丢弃前几帧以获得稳定图像。"""
         deadline = time.time() + timeout
         count = 0

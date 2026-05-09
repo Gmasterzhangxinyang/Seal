@@ -41,47 +41,83 @@ SERIAL_PORT = _auto_detect_serial_port()
 
 # ─── 摄像头 ──────────────────────────────────────────────────────────────────
 
-def _auto_detect_camera() -> tuple:
-    """自动检测摄像头，返回 (index, backend, probe_info)。
-
-    策略：
-    1. 遍历 index 0-4，用 DSHOW 后端打开
-    2. 对每个摄像头读帧测亮度，选亮度最高的（跳过全黑的红外/深度摄像头）
-    3. 同时缓存所有摄像头的分辨率信息，供 list_cameras 使用
-    """
+def _probe_one_camera(idx, backend, backend_name):
+    """用指定后端探测单个摄像头，返回 (ok, brightness, w, h)。"""
     import cv2
     import numpy as np
-
-    best_idx, best_brightness = 0, -1
-    for idx in range(5):
-        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+    try:
+        cap = cv2.VideoCapture(idx, backend)
         if not cap.isOpened():
-            continue
+            return False, 0, 0, 0
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        for _ in range(5):
+        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3)
+        cap.set(cv2.CAP_PROP_AUTO_WB, 1)
+        for _ in range(15):
             cap.grab()
         ret, frame = cap.read()
-        # 缓存分辨率
         w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        CAMERA_PROBE[idx] = f"{w}x{h}"
-        brightness = float(np.mean(frame)) if ret and frame is not None else 0
         cap.release()
-        logging.info(f'DSHOW 摄像头 index={idx}: brightness={brightness:.0f}, resolution={w}x{h}')
-        if brightness > 10 and brightness > best_brightness:
-            best_idx, best_brightness = idx, brightness
+        brightness = float(np.mean(frame)) if ret and frame is not None else 0
+        ok = ret and frame is not None and brightness > 10
+        return ok, brightness, w, h
+    except Exception as e:
+        logging.warning(f'{backend_name} 探测 index={idx} 异常: {e}')
+        return False, 0, 0, 0
+
+
+def _auto_detect_camera() -> tuple:
+    """自动检测摄像头，返回 (index, backend)。
+
+    策略：
+    1. 遍历 index 0-4，对每个摄像头分别测试 MSMF 和 DSHOW 后端
+    2. MSMF 对内置摄像头自动曝光支持更好，DSHOW 对部分 USB 摄像头兼容性更好
+    3. 选亮度最高的摄像头，记录每个摄像头适用的后端
+    """
+    import cv2
+
+    best_idx, best_brightness, best_backend = 0, -1, cv2.CAP_MSMF
+
+    for idx in range(5):
+        chosen_backend = None
+        chosen_res = '0x0'
+
+        # 优先尝试 MSMF
+        ok, brightness, w, h = _probe_one_camera(idx, cv2.CAP_MSMF, 'MSMF')
+        if ok:
+            logging.info(f'MSMF 摄像头 index={idx}: OK, brightness={brightness:.0f}, resolution={w}x{h}')
+            chosen_backend = cv2.CAP_MSMF
+            chosen_res = f'{w}x{h}'
+        else:
+            # MSMF 失败，回退 DSHOW
+            ok2, brightness, w, h = _probe_one_camera(idx, cv2.CAP_DSHOW, 'DSHOW')
+            if ok2:
+                logging.info(f'DSHOW 摄像头 index={idx}: OK, brightness={brightness:.0f}, resolution={w}x{h}')
+                chosen_backend = cv2.CAP_DSHOW
+                chosen_res = f'{w}x{h}'
+            else:
+                logging.info(f'摄像头 index={idx}: MSMF/DSHOW 均不可用')
+                continue
+
+        CAMERA_PROBE[idx] = chosen_res
+        CAMERA_BACKENDS[idx] = chosen_backend
+
+        if brightness > best_brightness:
+            best_idx, best_brightness, best_backend = idx, brightness, chosen_backend
 
     if best_brightness > 0:
-        logging.info(f'自动选择摄像头: index={best_idx} (brightness={best_brightness:.0f})')
-        return best_idx, cv2.CAP_DSHOW
+        logging.info(f'自动选择摄像头: index={best_idx}, backend={"MSMF" if best_backend == cv2.CAP_MSMF else "DSHOW"} (brightness={best_brightness:.0f})')
+        return best_idx, best_backend
 
     logging.warning('未检测到可用摄像头，使用默认 index=0')
-    return 0, None
+    return 0, cv2.CAP_MSMF
 
 # 启动探测时缓存的摄像头分辨率 {index: "WxH"}
 CAMERA_PROBE: dict[int, str] = {}
+# 每个摄像头适用的后端 {index: cv2.CAP_MSMF / cv2.CAP_DSHOW}
+CAMERA_BACKENDS: dict[int, int] = {}
 CAMERA_INDEX, CAMERA_BACKEND = _auto_detect_camera()
 
 # ─── 路径 ────────────────────────────────────────────────────────────────────
