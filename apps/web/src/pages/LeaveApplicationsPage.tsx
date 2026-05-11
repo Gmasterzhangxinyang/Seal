@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiFetch, apiPost } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
@@ -10,18 +10,25 @@ export function LeaveApplicationsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const navigate = useNavigate()
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const path = statusFilter ? `/leave-applications?status=${statusFilter}` : '/leave-applications'
+      const path = statusFilter
+        ? `/leave-applications?status=${statusFilter}`
+        : '/leave-applications'
       const data = await apiFetch<LeaveApplication[]>(path)
       setApplications(data)
-    } catch {} finally {
+    } catch {
+      /* network error */
+    } finally {
       setLoading(false)
     }
-  }
+  }, [statusFilter])
 
-  useEffect(() => { refresh() }, [statusFilter])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refresh()
+  }, [statusFilter, refresh])
 
   const handleApprove = async (applicationId: string) => {
     await apiPost(`/leave-applications/${applicationId}/approve`, {})
@@ -76,12 +83,22 @@ export function LeaveApplicationsPage() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr>
-                <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">申请编号</th>
-                <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">学生姓名</th>
+                <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">
+                  申请编号
+                </th>
+                <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">
+                  学生姓名
+                </th>
                 <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">学号</th>
-                <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">请假类型</th>
-                <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">开始日期</th>
-                <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">结束日期</th>
+                <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">
+                  请假类型
+                </th>
+                <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">
+                  开始日期
+                </th>
+                <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">
+                  结束日期
+                </th>
                 <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">状态</th>
                 <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">操作</th>
               </tr>
@@ -89,14 +106,21 @@ export function LeaveApplicationsPage() {
             <tbody>
               {applications.map((app) => (
                 <tr key={app.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 border-b border-gray-100 font-mono text-xs">{app.application_id}</td>
+                  <td className="px-3 py-2 border-b border-gray-100 font-mono text-xs">
+                    {app.application_id}
+                  </td>
                   <td className="px-3 py-2 border-b border-gray-100">{app.student_name}</td>
                   <td className="px-3 py-2 border-b border-gray-100">{app.student_id}</td>
                   <td className="px-3 py-2 border-b border-gray-100">{app.leave_type}</td>
                   <td className="px-3 py-2 border-b border-gray-100">{app.start_date}</td>
                   <td className="px-3 py-2 border-b border-gray-100">{app.end_date}</td>
                   <td className="px-3 py-2 border-b border-gray-100">
-                    <span className={cn('inline-block px-2 py-0.5 rounded text-xs font-bold', statusStyle[app.status] || 'bg-gray-100')}>
+                    <span
+                      className={cn(
+                        'inline-block px-2 py-0.5 rounded text-xs font-bold',
+                        statusStyle[app.status] || 'bg-gray-100',
+                      )}
+                    >
                       {app.status}
                     </span>
                   </td>

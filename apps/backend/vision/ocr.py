@@ -1,5 +1,6 @@
 import os
-os.environ['FLAGS_use_mkldnn'] = '0'
+
+os.environ["FLAGS_use_mkldnn"] = "0"
 
 import re
 from paddleocr import PaddleOCR
@@ -12,7 +13,9 @@ _ocr_engine = None
 def _get_engine():
     global _ocr_engine
     if _ocr_engine is None:
-        _ocr_engine = PaddleOCR(use_angle_cls=True, lang='ch', show_log=False, enable_mkldnn=False)
+        _ocr_engine = PaddleOCR(
+            use_angle_cls=True, lang="ch", show_log=False, enable_mkldnn=False
+        )
     return _ocr_engine
 
 
@@ -30,7 +33,7 @@ def extract_fields(image_path: str) -> tuple[dict, str]:
     if result and result[0]:
         lines = [item[1][0] for item in result[0]]
 
-    full_text = '\n'.join(lines)
+    full_text = "\n".join(lines)
     fields = _parse_fields(full_text)
     return fields, full_text
 
@@ -39,38 +42,35 @@ def _parse_fields(text: str) -> dict:
     fields = {}
 
     # 姓名：支持"姓名：张三" / "姓名:张三" 两种格式
-    m = re.search(r'姓\s*名\s*[：:]\s*(\S{2,5})', text)
+    m = re.search(r"姓\s*名\s*[：:]\s*(\S{2,5})", text)
     if m:
-        fields['姓名'] = m.group(1)
+        fields["姓名"] = m.group(1)
 
     # 学号/工号（6-12位数字）
-    m = re.search(r'(?:学号|工号|学生编号)\s*[：:]\s*(\d{6,12})', text)
+    m = re.search(r"(?:学号|工号|学生编号)\s*[：:]\s*(\d{6,12})", text)
     if m:
-        fields['学号'] = m.group(1)
+        fields["学号"] = m.group(1)
     else:
         # 降级：直接找连续8-12位数字
-        m = re.search(r'\b(\d{8,12})\b', text)
+        m = re.search(r"\b(\d{8,12})\b", text)
         if m:
-            fields['学号'] = m.group(1)
+            fields["学号"] = m.group(1)
 
     # 日期（多种格式：2024-01-01 / 2024年1月1日 / 2024/01/01）
-    m = re.search(
-        r'(\d{4})\s*[-年/]\s*(\d{1,2})\s*[-月/]\s*(\d{1,2})\s*日?',
-        text
-    )
+    m = re.search(r"(\d{4})\s*[-年/]\s*(\d{1,2})\s*[-月/]\s*(\d{1,2})\s*日?", text)
     if m:
         y, mo, d = m.group(1), m.group(2).zfill(2), m.group(3).zfill(2)
-        fields['日期'] = f'{y}-{mo}-{d}'
+        fields["日期"] = f"{y}-{mo}-{d}"
 
     # 金额（含"元"或"¥"符号）
-    m = re.search(r'(?:金额|合计|总计)\s*[：:￥¥]?\s*(\d+(?:\.\d{1,2})?)\s*元?', text)
+    m = re.search(r"(?:金额|合计|总计)\s*[：:￥¥]?\s*(\d+(?:\.\d{1,2})?)\s*元?", text)
     if m:
-        fields['金额'] = m.group(1)
+        fields["金额"] = m.group(1)
 
     # 原因/事由（请假、报销等）
-    m = re.search(r'(?:原因|事由|申请原因)\s*[：:]\s*(.{2,30})', text)
+    m = re.search(r"(?:原因|事由|申请原因)\s*[：:]\s*(.{2,30})", text)
     if m:
-        fields['原因'] = m.group(1).strip()
+        fields["原因"] = m.group(1).strip()
 
     return fields
 
@@ -92,7 +92,7 @@ def extract_fields_with_positions(image_path: str) -> tuple:
             cy = sum(p[1] for p in pts) // 4
             boxes.append({"text": text, "box": pts, "center": (cx, cy)})
 
-    full_text = '\n'.join(lines)
+    full_text = "\n".join(lines)
     fields = _parse_fields(full_text)
     return fields, full_text, boxes
 
@@ -100,23 +100,23 @@ def extract_fields_with_positions(image_path: str) -> tuple:
 def find_stamp_target(boxes: list, keywords: list | None = None) -> tuple | None:
     """从 OCR 检测框中找到盖章目标位置（归一化坐标）"""
     if keywords is None:
-        keywords = ['盖章处', '审批人', '签名', '签字', '审核人', '负责人']
+        keywords = ["盖章处", "审批人", "签名", "签字", "审核人", "负责人"]
 
     if not boxes:
         return None
 
-    max_x = max(b['center'][0] for b in boxes)
-    max_y = max(b['center'][1] for b in boxes)
+    max_x = max(b["center"][0] for b in boxes)
+    max_y = max(b["center"][1] for b in boxes)
     if max_x == 0 or max_y == 0:
         return None
 
     for kw in keywords:
         for b in boxes:
-            if kw in b['text']:
-                cx, cy = b['center']
-                xs = [p[0] for p in b['box']]
+            if kw in b["text"]:
+                cx, cy = b["center"]
+                xs = [p[0] for p in b["box"]]
                 box_w = max(xs) - min(xs)
-                if kw == '盖章处':
+                if kw == "盖章处":
                     stamp_x, stamp_y = cx, cy
                 else:
                     stamp_x = cx + int(box_w * 0.5) + 60
@@ -132,26 +132,26 @@ def find_stamp_target_pixel(boxes: list, keywords: list | None = None) -> tuple 
     返回 (cx, cy) 像素坐标，用于 IK 求解。
     """
     if keywords is None:
-        keywords = ['盖章处', '审批人', '签名', '签字', '审核人', '负责人']
+        keywords = ["盖章处", "审批人", "签名", "签字", "审核人", "负责人"]
 
     if not boxes:
         return None
 
     for kw in keywords:
         for b in boxes:
-            if kw in b['text']:
-                cx, cy = b['center']
-                xs = [p[0] for p in b['box']]
+            if kw in b["text"]:
+                cx, cy = b["center"]
+                xs = [p[0] for p in b["box"]]
                 box_w = max(xs) - min(xs)
-                if kw == '盖章处':
+                if kw == "盖章处":
                     return (cx, cy)
                 else:
                     return (cx + int(box_w * 0.5) + 60, cy)
 
     # 默认位置：右下角区域
     if boxes:
-        max_x = max(b['center'][0] for b in boxes)
-        max_y = max(b['center'][1] for b in boxes)
+        max_x = max(b["center"][0] for b in boxes)
+        max_y = max(b["center"][1] for b in boxes)
         return (int(max_x * 0.82), int(max_y * 0.85))
     return None
 
@@ -168,8 +168,8 @@ def extract_fields_by_template(full_text: str, template_code: str) -> dict:
     # 再用模板 pattern 覆盖/补充
     patterns = get_ocr_patterns(template_code)
     for p in patterns:
-        name = p['field_name']
-        pattern = p.get('ocr_pattern', '')
+        name = p["field_name"]
+        pattern = p.get("ocr_pattern", "")
         if not pattern:
             continue
         try:
@@ -177,7 +177,9 @@ def extract_fields_by_template(full_text: str, template_code: str) -> dict:
             if m:
                 if m.lastindex and m.lastindex >= 2:
                     # 多捕获组（如日期年/月/日）：用 '-' 拼接所有组
-                    fields[name] = '-'.join(m.group(i) for i in range(1, m.lastindex + 1))
+                    fields[name] = "-".join(
+                        m.group(i) for i in range(1, m.lastindex + 1)
+                    )
                 elif m.lastindex:
                     fields[name] = m.group(1)
                 else:

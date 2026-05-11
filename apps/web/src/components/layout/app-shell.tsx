@@ -20,7 +20,7 @@ export function AppShell() {
   const isStampPage = location.pathname === '/'
 
   const visibleNavItems = navItems.filter(
-    (item) => !item.roles || (user && item.roles.includes(user.role))
+    (item) => !item.roles || (user && item.roles.includes(user.role)),
   )
 
   return (
@@ -35,7 +35,7 @@ export function AppShell() {
               to={item.path}
               className={cn(
                 'text-[#a8dadc] hover:text-white transition-colors text-sm',
-                location.pathname === item.path && 'text-white font-semibold'
+                location.pathname === item.path && 'text-white font-semibold',
               )}
             >
               {item.label}
@@ -65,7 +65,7 @@ export function AppShell() {
         className={cn(
           isStampPage
             ? 'hidden'
-            : 'fixed bottom-0 right-0 w-px h-px opacity-0 pointer-events-none overflow-hidden'
+            : 'fixed bottom-0 right-0 w-px h-px opacity-0 pointer-events-none overflow-hidden',
         )}
         aria-hidden={!isStampPage}
       >

@@ -58,7 +58,8 @@ export function CalibrationPage() {
     alert(res.connected ? '连接正常' : '连接失败')
   }
 
-  if (loading || !config) return <div className="text-center py-8 text-muted-foreground">加载中...</div>
+  if (loading || !config)
+    return <div className="text-center py-8 text-muted-foreground">加载中...</div>
 
   const corners = cal.corners || {}
 
@@ -67,10 +68,16 @@ export function CalibrationPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-[#1d3557]">机械臂标定</h2>
         <div className="flex gap-2">
-          <button onClick={ping} className="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">
+          <button
+            onClick={ping}
+            className="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200"
+          >
             测试连接
           </button>
-          <button onClick={goHome} className="px-3 py-1.5 bg-[#457b9d] text-white rounded-lg text-sm hover:opacity-90">
+          <button
+            onClick={goHome}
+            className="px-3 py-1.5 bg-[#457b9d] text-white rounded-lg text-sm hover:opacity-90"
+          >
             回中位
           </button>
         </div>
@@ -90,7 +97,9 @@ export function CalibrationPage() {
                 onChange={(e) => handleSliderChange(i, parseInt(e.target.value))}
                 className="flex-1"
               />
-              <span className="w-16 text-sm font-mono text-right">{servos[i] ?? config.value_mid}</span>
+              <span className="w-16 text-sm font-mono text-right">
+                {servos[i] ?? config.value_mid}
+              </span>
             </div>
           ))}
         </div>
@@ -120,7 +129,9 @@ export function CalibrationPage() {
           </button>
         </div>
         <div className="mt-3 text-xs text-gray-500 font-mono">
-          {Object.entries(TARGET_POSES.快速定位).map(([s, v]) => `S${s}=${v}`).join('  ')}
+          {Object.entries(TARGET_POSES.快速定位)
+            .map(([s, v]) => `S${s}=${v}`)
+            .join('  ')}
         </div>
       </div>
 

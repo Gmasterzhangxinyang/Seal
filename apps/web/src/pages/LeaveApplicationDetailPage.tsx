@@ -16,7 +16,7 @@ export function LeaveApplicationDetailPage() {
       .then(setApp)
       .catch(() => navigate('/applications'))
       .finally(() => setLoading(false))
-  }, [applicationId])
+  }, [applicationId, navigate])
 
   const handleApprove = async () => {
     if (!applicationId) return
@@ -47,7 +47,10 @@ export function LeaveApplicationDetailPage() {
   return (
     <div className="card bg-white rounded-xl shadow p-6 max-w-2xl">
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate('/applications')} className="text-sm text-[#457b9d] hover:underline">
+        <button
+          onClick={() => navigate('/applications')}
+          className="text-sm text-[#457b9d] hover:underline"
+        >
           ← 返回列表
         </button>
         <h2 className="text-lg font-bold text-[#1d3557]">请假申请详情</h2>
@@ -55,19 +58,44 @@ export function LeaveApplicationDetailPage() {
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{app.application_id}</span>
-          <span className={cn('px-3 py-1 rounded text-sm font-bold', statusStyle[app.status] || 'bg-gray-100')}>
+          <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
+            {app.application_id}
+          </span>
+          <span
+            className={cn(
+              'px-3 py-1 rounded text-sm font-bold',
+              statusStyle[app.status] || 'bg-gray-100',
+            )}
+          >
             {app.status}
           </span>
         </div>
 
         <div className="grid grid-cols-2 gap-4 text-sm">
-          <div><span className="text-gray-500">学生姓名：</span>{app.student_name}</div>
-          <div><span className="text-gray-500">学号：</span>{app.student_id}</div>
-          <div><span className="text-gray-500">院系：</span>{app.dept || '-'}</div>
-          <div><span className="text-gray-500">请假类型：</span>{app.leave_type}</div>
-          <div><span className="text-gray-500">开始日期：</span>{app.start_date}</div>
-          <div><span className="text-gray-500">结束日期：</span>{app.end_date}</div>
+          <div>
+            <span className="text-gray-500">学生姓名：</span>
+            {app.student_name}
+          </div>
+          <div>
+            <span className="text-gray-500">学号：</span>
+            {app.student_id}
+          </div>
+          <div>
+            <span className="text-gray-500">院系：</span>
+            {app.dept || '-'}
+          </div>
+          <div>
+            <span className="text-gray-500">请假类型：</span>
+            {app.leave_type}
+          </div>
+          <div>
+            <span className="text-gray-500">开始日期：</span>
+            {app.start_date}
+          </div>
+          <div>
+            <span className="text-gray-500">结束日期：</span>
+            {app.end_date}
+          </div>
         </div>
 
         <div>

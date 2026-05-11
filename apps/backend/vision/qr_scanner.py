@@ -1,12 +1,11 @@
 import cv2
 from pyzbar.pyzbar import decode
 
-
 # 文件类型映射：二维码内容前缀 → 内部类型代码
 _QR_TYPE_MAP = {
-    'LEAVE':   'leave',
-    'EXPENSE': 'expense',
-    'CERT':    'cert',
+    "LEAVE": "leave",
+    "EXPENSE": "expense",
+    "CERT": "cert",
 }
 
 
@@ -21,10 +20,10 @@ def scan_qr(image_path: str) -> tuple[str | None, str]:
     codes = decode(img)
 
     if not codes:
-        return None, 'general'
+        return None, "general"
 
-    qr_raw = codes[0].data.decode('utf-8').strip()
-    doc_type = 'general'
+    qr_raw = codes[0].data.decode("utf-8").strip()
+    doc_type = "general"
 
     for prefix, dtype in _QR_TYPE_MAP.items():
         if qr_raw.upper().startswith(prefix):

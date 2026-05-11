@@ -15,10 +15,10 @@ class DMSClient:
 
     def __init__(self):
         self.enabled = bool(DMS_BASE_URL)
-        self.base_url = DMS_BASE_URL.rstrip('/')
+        self.base_url = DMS_BASE_URL.rstrip("/")
         self.headers = {
-            'Authorization': f'Bearer {DMS_API_KEY}',
-            'Accept': 'application/json',
+            "Authorization": f"Bearer {DMS_API_KEY}",
+            "Accept": "application/json",
         }
 
     def upload_stamped_doc(self, image_path: str, metadata: dict) -> str | None:
@@ -27,24 +27,24 @@ class DMSClient:
         返回 DMS 分配的文档 ID，失败返回 None。
         """
         if not self.enabled:
-            logger.info('[DMS] 未配置，跳过上传')
+            logger.info("[DMS] 未配置，跳过上传")
             return None
 
         try:
-            with open(image_path, 'rb') as f:
+            with open(image_path, "rb") as f:
                 resp = requests.post(
-                    f'{self.base_url}/api/documents/upload',
+                    f"{self.base_url}/api/documents/upload",
                     headers=self.headers,
-                    files={'file': ('stamped.jpg', f, 'image/jpeg')},
-                    data={'metadata': str(metadata)},
+                    files={"file": ("stamped.jpg", f, "image/jpeg")},
+                    data={"metadata": str(metadata)},
                     timeout=10,
                 )
             resp.raise_for_status()
-            doc_id = resp.json().get('doc_id')
-            logger.info(f'[DMS] 上传成功，doc_id={doc_id}')
+            doc_id = resp.json().get("doc_id")
+            logger.info(f"[DMS] 上传成功，doc_id={doc_id}")
             return doc_id
         except Exception as e:
-            logger.warning(f'[DMS] 上传失败（不影响本地流程）：{e}')
+            logger.warning(f"[DMS] 上传失败（不影响本地流程）：{e}")
             return None
 
     def query_personnel(self, id_number: str) -> dict | None:
@@ -57,12 +57,12 @@ class DMSClient:
 
         try:
             resp = requests.get(
-                f'{self.base_url}/api/personnel/{id_number}',
+                f"{self.base_url}/api/personnel/{id_number}",
                 headers=self.headers,
                 timeout=5,
             )
             if resp.status_code == 200:
                 return resp.json()
         except Exception as e:
-            logger.warning(f'[DMS] 人员查询失败：{e}')
+            logger.warning(f"[DMS] 人员查询失败：{e}")
         return None

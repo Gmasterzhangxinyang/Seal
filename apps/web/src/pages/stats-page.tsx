@@ -13,7 +13,8 @@ export function StatsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading || !data) return <div className="text-center py-8 text-muted-foreground">加载中...</div>
+  if (loading || !data)
+    return <div className="text-center py-8 text-muted-foreground">加载中...</div>
 
   return (
     <div className="space-y-6">

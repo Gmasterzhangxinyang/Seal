@@ -20,7 +20,9 @@ def get_session(request: Request) -> dict:
 
 def set_session(response: Response, username: str, role: str):
     token = signer.sign(f"{username}|{role}").decode()
-    response.set_cookie(SESSION_COOKIE, token, httponly=True, max_age=86400 * 7, samesite="lax")
+    response.set_cookie(
+        SESSION_COOKIE, token, httponly=True, max_age=86400 * 7, samesite="lax"
+    )
 
 
 def require_role(*roles: str):
@@ -28,4 +30,5 @@ def require_role(*roles: str):
         if session["role"] not in roles:
             raise HTTPException(403, "权限不足")
         return session
+
     return checker

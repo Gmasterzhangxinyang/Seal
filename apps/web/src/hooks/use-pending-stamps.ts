@@ -9,10 +9,13 @@ export function usePendingStamps(intervalMs = 5000) {
     try {
       const data = await apiFetch<{ items: PendingStampItem[] }>('/review/pending_stamps')
       setItems(data.items)
-    } catch {}
+    } catch {
+      /* network error */
+    }
   }, [])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh()
     const id = setInterval(refresh, intervalMs)
     return () => clearInterval(id)

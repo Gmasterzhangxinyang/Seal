@@ -29,8 +29,7 @@ class SelectRequest(BaseModel):
 def list_cameras(session: dict = Depends(get_session)):
     """列出可用摄像头，使用启动时缓存的探测数据，不再重复打开摄像头。"""
     cameras = [
-        {"index": i, "resolution": res}
-        for i, res in sorted(CAMERA_PROBE.items())
+        {"index": i, "resolution": res} for i, res in sorted(CAMERA_PROBE.items())
     ]
     return {"cameras": cameras, "current": _current_index}
 
@@ -40,7 +39,6 @@ def select_camera(body: SelectRequest, session: dict = Depends(get_session)):
     global _current_index, _current_backend
     with _camera_lock:
         old_index = _current_index
-        old_backend = _current_backend
         try:
             # 使用探测阶段为该摄像头测出的最佳后端
             be = CAMERA_BACKENDS.get(body.index, cv2.CAP_MSMF)
@@ -63,8 +61,15 @@ def _gen_frames():
     except Exception as e:
         logger.error(f"摄像头初始化失败: {e}")
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        cv2.putText(frame, f"Camera Error: {e}", (20, 240),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+        cv2.putText(
+            frame,
+            f"Camera Error: {e}",
+            (20, 240),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (0, 0, 255),
+            2,
+        )
         _, buf = cv2.imencode(".jpg", frame)
         yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n"
         return
@@ -83,13 +88,31 @@ def _gen_frames():
             else:
                 black_count = 0
             if black_count > 30:
-                cv2.rectangle(frame, (0, 0), (frame.shape[1], frame.shape[0]), (0, 0, 180), -1)
-                cv2.putText(frame, "Camera: No valid signal", (30, frame.shape[0] // 2 - 20),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
-                cv2.putText(frame, "Check connection or try another camera", (30, frame.shape[0] // 2 + 20),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 1)
+                cv2.rectangle(
+                    frame, (0, 0), (frame.shape[1], frame.shape[0]), (0, 0, 180), -1
+                )
+                cv2.putText(
+                    frame,
+                    "Camera: No valid signal",
+                    (30, frame.shape[0] // 2 - 20),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.0,
+                    (255, 255, 255),
+                    2,
+                )
+                cv2.putText(
+                    frame,
+                    "Check connection or try another camera",
+                    (30, frame.shape[0] // 2 + 20),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (200, 200, 200),
+                    1,
+                )
             _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
-            yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n"
+            yield (
+                b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n"
+            )
     except Exception:
         time.sleep(1)
 

@@ -49,7 +49,9 @@ export function LogsPage() {
             <tr>
               <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">时间</th>
               <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">操作员</th>
-              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">文件类型</th>
+              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">
+                文件类型
+              </th>
               <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">结果</th>
               <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">错误</th>
               <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200"></th>
@@ -61,12 +63,17 @@ export function LogsPage() {
               const fields = parseJson(log.fields)
               return (
                 <React.Fragment key={log.id}>
-                  <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => setExpandedId(expanded ? null : log.id)}>
+                  <tr
+                    className="hover:bg-gray-50 cursor-pointer"
+                    onClick={() => setExpandedId(expanded ? null : log.id)}
+                  >
                     <td className="px-3 py-2 border-b border-gray-100">{log.timestamp}</td>
                     <td className="px-3 py-2 border-b border-gray-100">{log.operator_id}</td>
                     <td className="px-3 py-2 border-b border-gray-100">{log.doc_type_name}</td>
                     <td className="px-3 py-2 border-b border-gray-100">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${resultStyle[log.result] || 'bg-gray-100'}`}>
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${resultStyle[log.result] || 'bg-gray-100'}`}
+                      >
                         {resultLabel[log.result] || log.result}
                       </span>
                     </td>
@@ -114,8 +121,12 @@ export function LogsPage() {
                           <div className="space-y-3">
                             {log.ocr_text && (
                               <div>
-                                <p className="text-xs font-semibold text-gray-500 mb-1">OCR 识别结果</p>
-                                <pre className="text-xs bg-white rounded border p-2 max-h-32 overflow-auto whitespace-pre-wrap">{log.ocr_text}</pre>
+                                <p className="text-xs font-semibold text-gray-500 mb-1">
+                                  OCR 识别结果
+                                </p>
+                                <pre className="text-xs bg-white rounded border p-2 max-h-32 overflow-auto whitespace-pre-wrap">
+                                  {log.ocr_text}
+                                </pre>
                               </div>
                             )}
                             {fields && Object.keys(fields).length > 0 && (

@@ -15,7 +15,6 @@ export function StampPage() {
   const [stampMode, setStampMode] = useState<'general' | 'leave'>('general')
 
   useEffect(() => {
-    setCamerasLoading(true)
     apiFetch<CameraListResponse>('/cameras')
       .then(setCameras)
       .catch(() => {})
@@ -59,7 +58,12 @@ export function StampPage() {
       if (data.success) {
         setResult({ status: 'approved', message: '验证通过，已盖章', fields: {} })
       } else if (data.decision === 'REVIEW') {
-        setResult({ status: 'pending_review', message: '验证不确定，已进入人工复审', warnings: data.warnings, fields: {} })
+        setResult({
+          status: 'pending_review',
+          message: '验证不确定，已进入人工复审',
+          warnings: data.warnings,
+          fields: {},
+        })
       } else {
         setResult({ status: 'rejected', errors: data.errors, warnings: data.warnings, fields: {} })
       }
@@ -98,9 +102,7 @@ export function StampPage() {
       {/* 待盖章通知 */}
       {pendingItems.length > 0 && (
         <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 mb-4 text-left">
-          <h3 className="text-sm font-bold text-yellow-800 mb-2">
-            有复审通过的文件待盖章
-          </h3>
+          <h3 className="text-sm font-bold text-yellow-800 mb-2">有复审通过的文件待盖章</h3>
           <p className="text-xs text-yellow-700 mb-3">
             请将原文件放置在底板上，然后点击对应项目的"验证并盖章"按钮。
           </p>
@@ -163,13 +165,23 @@ export function StampPage() {
         <div className="flex rounded-lg border overflow-hidden">
           <button
             onClick={() => setStampMode('general')}
-            className={cn('px-4 py-1.5 text-sm font-medium transition', stampMode === 'general' ? 'bg-[#457b9d] text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}
+            className={cn(
+              'px-4 py-1.5 text-sm font-medium transition',
+              stampMode === 'general'
+                ? 'bg-[#457b9d] text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-50',
+            )}
           >
             通用文档
           </button>
           <button
             onClick={() => setStampMode('leave')}
-            className={cn('px-4 py-1.5 text-sm font-medium transition', stampMode === 'leave' ? 'bg-[#457b9d] text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}
+            className={cn(
+              'px-4 py-1.5 text-sm font-medium transition',
+              stampMode === 'leave'
+                ? 'bg-[#457b9d] text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-50',
+            )}
           >
             请假条核验
           </button>
@@ -185,7 +197,7 @@ export function StampPage() {
             'w-40 h-40 rounded-full text-white font-bold text-lg leading-snug border-none cursor-pointer transition-all',
             'bg-gradient-to-br from-[#457b9d] to-[#1d3557] shadow-lg',
             'hover:scale-105 hover:shadow-xl active:scale-95',
-            'disabled:bg-gray-400 disabled:cursor-not-allowed disabled:shadow-none disabled:scale-100'
+            'disabled:bg-gray-400 disabled:cursor-not-allowed disabled:shadow-none disabled:scale-100',
           )}
         >
           {stampMode === 'leave' ? '扫描请假条\n并核验盖章' : '扫描\n&\n盖章'}
@@ -219,20 +231,19 @@ function ResultCard({ result }: { result: StampResult }) {
     pending_review: '已推入复审队列',
     error: '系统错误',
   }
-  const msgs =
-    result.errors?.length
-      ? result.errors
-      : result.warnings?.length
-        ? result.warnings
-        : result.message
-          ? [result.message]
-          : []
+  const msgs = result.errors?.length
+    ? result.errors
+    : result.warnings?.length
+      ? result.warnings
+      : result.message
+        ? [result.message]
+        : []
 
   return (
     <div
       className={cn(
         'rounded-lg p-4 max-w-[480px] w-full text-left animate-in fade-in slide-in-from-bottom-2',
-        styles[result.status] || styles.error
+        styles[result.status] || styles.error,
       )}
     >
       <h3 className="font-bold text-sm mb-1">{titles[result.status] || '系统错误'}</h3>

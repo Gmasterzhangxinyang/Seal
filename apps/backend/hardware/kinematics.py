@@ -11,16 +11,17 @@ WeArm PWM 映射 (MG996R / DS3225 等标准舵机):
   1500 → 90°
   2500 → 180°
 """
+
 import math
 import logging
 
 logger = logging.getLogger(__name__)
 
 # ─── 连杆参数 (mm) ─────────────────────────────────────────────────────────
-H0 = 20.0   # 底座旋转轴到肩关节的垂直距离
+H0 = 20.0  # 底座旋转轴到肩关节的垂直距离
 L1 = 103.0  # 大臂长度 (肩→肘)
-L2 = 96.0   # 小臂长度 (肘→腕)
-L3 = 50.0   # 腕到末端执行器 (可调，取决于印章安装方式)
+L2 = 96.0  # 小臂长度 (肘→腕)
+L3 = 50.0  # 腕到末端执行器 (可调，取决于印章安装方式)
 
 # ─── WeArm PWM ↔ 角度转换 ──────────────────────────────────────────────────
 PWM_MIN = 500
@@ -44,17 +45,23 @@ def deg_to_pwm(deg: float) -> int:
 # 这些值表示：当机械臂竖直向上时各舵机对应的 PWM 角度。
 # 初始值基于 WeArm 默认安装姿态。
 SERVO_OFFSETS = {
-    0: 90.0,   # 底盘: 90° = 正前方
-    1: 90.0,   # 大臂: 90° = 水平
-    2: 90.0,   # 小臂: 90° = 与大臂同向
-    3: 90.0,   # 手腕: 90° = 保持末端朝下
+    0: 90.0,  # 底盘: 90° = 正前方
+    1: 90.0,  # 大臂: 90° = 水平
+    2: 90.0,  # 小臂: 90° = 与大臂同向
+    3: 90.0,  # 手腕: 90° = 保持末端朝下
 }
 
 
-def inverse_kinematics(x: float, y: float, z: float,
-                       wrist_angle: float = -90.0,
-                       h0: float = H0, l1: float = L1,
-                       l2: float = L2, l3: float = L3) -> dict:
+def inverse_kinematics(
+    x: float,
+    y: float,
+    z: float,
+    wrist_angle: float = -90.0,
+    h0: float = H0,
+    l1: float = L1,
+    l2: float = L2,
+    l3: float = L3,
+) -> dict:
     """三自由度逆运动学求解。
 
     坐标系: 底座旋转轴为原点，Z 轴向上。
@@ -75,7 +82,7 @@ def inverse_kinematics(x: float, y: float, z: float,
         theta0 = math.atan2(y, x)
 
     # 在臂平面内，将目标转换到 2D (r, h)
-    r = math.sqrt(x ** 2 + y ** 2)  # 水平距离
+    r = math.sqrt(x**2 + y**2)  # 水平距离
 
     # 考虑 L3 和手腕角度偏移
     # 末端朝下时 (wrist_angle = -90°)，腕关节位于目标正上方 L3 处
@@ -84,25 +91,25 @@ def inverse_kinematics(x: float, y: float, z: float,
     wrist_z = (z - h0) - l3 * math.sin(wr)
 
     # 肩关节到腕关节的距离
-    d_sq = wrist_x ** 2 + wrist_z ** 2
+    d_sq = wrist_x**2 + wrist_z**2
     d = math.sqrt(d_sq)
 
     # 可达性检查
     if d > l1 + l2 - 0.1:
-        logger.warning(f'目标超出工作空间: d={d:.1f} > L1+L2={l1 + l2:.1f}')
+        logger.warning(f"目标超出工作空间: d={d:.1f} > L1+L2={l1 + l2:.1f}")
         return None
     if d < abs(l1 - l2) + 0.1:
-        logger.warning(f'目标过近: d={d:.1f} < |L1-L2|={abs(l1 - l2):.1f}')
+        logger.warning(f"目标过近: d={d:.1f} < |L1-L2|={abs(l1 - l2):.1f}")
         return None
 
     # 肘关节角 (余弦定理)
-    cos_elbow = (d_sq - l1 ** 2 - l2 ** 2) / (2 * l1 * l2)
+    cos_elbow = (d_sq - l1**2 - l2**2) / (2 * l1 * l2)
     cos_elbow = max(-1.0, min(1.0, cos_elbow))
     theta2 = math.acos(cos_elbow)  # 肘关节相对大臂的弯曲角
 
     # 肩关节角
     alpha = math.atan2(wrist_z, wrist_x)  # 肩到腕的方向角
-    beta = math.acos((l1 ** 2 + d_sq - l2 ** 2) / (2 * l1 * d))  # 偏转角
+    beta = math.acos((l1**2 + d_sq - l2**2) / (2 * l1 * d))  # 偏转角
     theta1 = alpha + beta  # 大臂相对水平面的仰角
 
     # 腕关节角 (保持末端朝下)
@@ -135,16 +142,16 @@ def inverse_kinematics(x: float, y: float, z: float,
         3: deg_to_pwm(servo3_deg),
     }
 
-    logger.info(f'IK: target=({x:.1f},{y:.1f},{z:.1f}) → '
-                f'θ=({servo0_deg:.1f}°,{servo1_deg:.1f}°,{servo2_deg:.1f}°,{servo3_deg:.1f}°) '
-                f'PWM={result}')
+    logger.info(
+        f"IK: target=({x:.1f},{y:.1f},{z:.1f}) → "
+        f"θ=({servo0_deg:.1f}°,{servo1_deg:.1f}°,{servo2_deg:.1f}°,{servo3_deg:.1f}°) "
+        f"PWM={result}"
+    )
 
     return result
 
 
-def pixel_to_world(cx: float, cy: float,
-                   img_w: int, img_h: int,
-                   cal: dict) -> tuple:
+def pixel_to_world(cx: float, cy: float, img_w: int, img_h: int, cal: dict) -> tuple:
     """将图像像素坐标转换为机械臂世界坐标。
 
     使用四角标定数据中的角点世界坐标进行双线性插值。
@@ -157,33 +164,26 @@ def pixel_to_world(cx: float, cy: float,
     返回:
         (x, y, z) 世界坐标 (mm)，z 为工作面高度
     """
-    corners = cal.get('corners')
+    corners = cal.get("corners")
     if not corners or len(corners) < 4:
-        raise RuntimeError('未完成四角标定')
+        raise RuntimeError("未完成四角标定")
 
     # 归一化坐标
     nx = cx / img_w if img_w > 0 else 0.5
     ny = cy / img_h if img_h > 0 else 0.5
 
     # 检查是否有世界坐标标定
-    world_corners = cal.get('world_corners')
+    world_corners = cal.get("world_corners")
     if world_corners and len(world_corners) == 4:
         # 使用标定的世界坐标进行插值
-        tl = world_corners['TL']
-        tr = world_corners['TR']
-        bl = world_corners['BL']
-        br = world_corners['BR']
+        tl = world_corners["TL"]
+        tr = world_corners["TR"]
+        bl = world_corners["BL"]
+        br = world_corners["BR"]
     else:
         # 回退: 使用标定的 PWM 值 + IK 逆推
         # 通过 PWM 值推算世界坐标 (简化: 使用默认工作面)
-        logger.info('未找到 world_corners，使用默认工作面坐标')
-        # 假设工作面在机械臂前方，基于标定位置估算
-        pwms_tl = {int(k): v for k, v in corners['top_left'].items()}
-        pwms_br = {int(k): v for k, v in corners['bottom_right'].items()}
-
-        # 用底盘 PWM 估算角度 → 水平距离
-        tl_angle = pwm_to_deg(pwms_tl.get(0, PWM_MID))
-        br_angle = pwm_to_deg(pwms_br.get(0, PWM_MID))
+        logger.info("未找到 world_corners，使用默认工作面坐标")
 
         # 简化估算: 工作面范围
         reach = L1 + L2 + L3
@@ -209,9 +209,9 @@ def pixel_to_world(cx: float, cy: float,
     return x, y, z
 
 
-def compute_stamp_pwm(cx: float, cy: float,
-                      img_w: int, img_h: int,
-                      cal: dict) -> dict | None:
+def compute_stamp_pwm(
+    cx: float, cy: float, img_w: int, img_h: int, cal: dict
+) -> dict | None:
     """完整的盖章坐标转换: 像素 → 世界坐标 → IK → PWM。
 
     参数:
@@ -224,8 +224,8 @@ def compute_stamp_pwm(cx: float, cy: float,
     """
     try:
         x, y, z = pixel_to_world(cx, cy, img_w, img_h, cal)
-        logger.info(f'像素({cx:.0f},{cy:.0f}) → 世界坐标({x:.1f},{y:.1f},{z:.1f})')
+        logger.info(f"像素({cx:.0f},{cy:.0f}) → 世界坐标({x:.1f},{y:.1f},{z:.1f})")
         return inverse_kinematics(x, y, z)
     except Exception as e:
-        logger.error(f'盖章坐标转换失败: {e}')
+        logger.error(f"盖章坐标转换失败: {e}")
         return None

@@ -18,12 +18,17 @@ export function ReviewPage() {
       ])
       setPending(p)
       setAllItems(a)
-    } catch {} finally {
+    } catch {
+      /* network error */
+    } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { refresh() }, [])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refresh()
+  }, [])
 
   const handleResolve = async (id: number, decision: string) => {
     await apiPost(`/review/${id}/resolve`, { decision })
@@ -100,7 +105,9 @@ export function ReviewPage() {
                     <span className="text-sm text-gray-500">{item.timestamp}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${statusStyle[item.status] || 'bg-gray-100'}`}>
+                    <span
+                      className={`text-xs font-bold px-2 py-0.5 rounded ${statusStyle[item.status] || 'bg-gray-100'}`}
+                    >
                       {statusLabel[item.status] || item.status}
                     </span>
                     <span className="text-xs text-[#457b9d]">{expanded ? '收起' : '展开'}</span>
@@ -129,13 +136,17 @@ export function ReviewPage() {
                         {item.ocr_text && (
                           <div>
                             <p className="text-xs font-semibold text-gray-500 mb-1">OCR 识别结果</p>
-                            <pre className="text-xs bg-white rounded border p-2 max-h-32 overflow-auto whitespace-pre-wrap">{item.ocr_text}</pre>
+                            <pre className="text-xs bg-white rounded border p-2 max-h-32 overflow-auto whitespace-pre-wrap">
+                              {item.ocr_text}
+                            </pre>
                           </div>
                         )}
                         {item.warnings && (
                           <div>
                             <p className="text-xs font-semibold text-gray-500 mb-1">警告信息</p>
-                            <pre className="text-xs bg-white rounded border p-2 max-h-20 overflow-auto whitespace-pre-wrap text-yellow-700">{item.warnings}</pre>
+                            <pre className="text-xs bg-white rounded border p-2 max-h-20 overflow-auto whitespace-pre-wrap text-yellow-700">
+                              {item.warnings}
+                            </pre>
                           </div>
                         )}
                         {fields && Object.keys(fields).length > 0 && (
@@ -163,13 +174,19 @@ export function ReviewPage() {
                 {item.status === 'pending' && (
                   <div className="px-4 pb-3 flex gap-2 bg-gray-50">
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleResolve(item.id, 'approved') }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleResolve(item.id, 'approved')
+                      }}
                       className="px-4 py-1.5 bg-green-600 text-white rounded text-sm font-semibold hover:opacity-90 transition"
                     >
                       通过
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleResolve(item.id, 'rejected') }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleResolve(item.id, 'rejected')
+                      }}
                       className="px-4 py-1.5 bg-red-500 text-white rounded text-sm font-semibold hover:opacity-90 transition"
                     >
                       拒绝

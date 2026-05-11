@@ -5,7 +5,7 @@ from config import SERIAL_PORT, SERIAL_BAUD, SIMULATION_MODE
 
 logger = logging.getLogger(__name__)
 
-SERVO_NAMES = {0: '底盘', 1: '大臂', 2: '小臂', 3: '手腕', 4: '夹爪', 5: '辅助'}
+SERVO_NAMES = {0: "底盘", 1: "大臂", 2: "小臂", 3: "手腕", 4: "夹爪", 5: "辅助"}
 
 PWM_MIN = 500
 PWM_MAX = 2500
@@ -13,12 +13,12 @@ PWM_MID = 1500
 
 
 def _cmd(servo_id: int, pwm: int, duration: int) -> bytes:
-    return f'#{servo_id:03d}P{pwm:04d}T{duration:04d}!'.encode()
+    return f"#{servo_id:03d}P{pwm:04d}T{duration:04d}!".encode()
 
 
 def _cmd_multi(*cmds) -> bytes:
-    body = ''.join(f'#{i:03d}P{p:04d}T{t:04d}!' for i, p, t in cmds)
-    return f'{{{body}}}'.encode()
+    body = "".join(f"#{i:03d}P{p:04d}T{t:04d}!" for i, p, t in cmds)
+    return f"{{{body}}}".encode()
 
 
 class WeArmController:
@@ -37,28 +37,35 @@ class WeArmController:
         if not SIMULATION_MODE and self._ser is None:
             self._connect()
         elif SIMULATION_MODE:
-            logger.info('[仿真模式] WeArmController 已初始化')
+            logger.info("[仿真模式] WeArmController 已初始化")
 
     def _connect(self):
         import serial
+
         try:
             self._ser = serial.Serial(SERIAL_PORT, SERIAL_BAUD, timeout=3)
             time.sleep(2)
-            self._send(_cmd_multi(
-                (0, PWM_MID, 1000), (1, PWM_MID, 1000), (2, PWM_MID, 1000),
-                (3, PWM_MID, 1000), (4, PWM_MID, 1000), (5, PWM_MID, 1000),
-            ))
+            self._send(
+                _cmd_multi(
+                    (0, PWM_MID, 1000),
+                    (1, PWM_MID, 1000),
+                    (2, PWM_MID, 1000),
+                    (3, PWM_MID, 1000),
+                    (4, PWM_MID, 1000),
+                    (5, PWM_MID, 1000),
+                )
+            )
             time.sleep(1.5)
-            logger.info(f'WeArm 已连接: {SERIAL_PORT}')
+            logger.info(f"WeArm 已连接: {SERIAL_PORT}")
         except Exception as e:
             raise RuntimeError(
-                f'无法连接 WeArm（{SERIAL_PORT}）：{e}\n'
-                '请检查：1) USB线是否插好  2) 电源开关是否打开  3) CH340驱动是否安装'
+                f"无法连接 WeArm（{SERIAL_PORT}）：{e}\n"
+                "请检查：1) USB线是否插好  2) 电源开关是否打开  3) CH340驱动是否安装"
             )
 
     def _send(self, data: bytes):
         if SIMULATION_MODE:
-            logger.info(f'[仿真] 发送: {data.decode()!r}')
+            logger.info(f"[仿真] 发送: {data.decode()!r}")
             return
         with self._lock:
             if self._ser and self._ser.is_open:

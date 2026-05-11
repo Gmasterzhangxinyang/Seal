@@ -27,3 +27,8 @@ dependencies = [
     "openai>=2.36.0",
     "python-dotenv>=1.0",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.12",
+]

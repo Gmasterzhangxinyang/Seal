@@ -3,7 +3,7 @@ import logging
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response, JSONResponse
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from api.deps import get_session, require_role
@@ -51,7 +51,9 @@ def list_templates(session: dict = Depends(get_session)):
 
 
 @router.post("")
-def create_template(body: TemplateCreate, session: dict = Depends(require_role("admin"))):
+def create_template(
+    body: TemplateCreate, session: dict = Depends(require_role("admin"))
+):
     tid = tpl_db.create_template(
         name=body.name,
         code=body.code,
@@ -59,10 +61,19 @@ def create_template(body: TemplateCreate, session: dict = Depends(require_role("
         classification_keywords=body.classification_keywords,
         classification_regex=body.classification_regex,
     )
-    _save_stamp_config(tid, body.requires_stamp, body.stamp_position, body.stamp_keywords)
+    _save_stamp_config(
+        tid, body.requires_stamp, body.stamp_position, body.stamp_keywords
+    )
     for i, f in enumerate(body.fields):
-        tpl_db.add_field(tid, f.field_name, f.field_label or f.field_name,
-                         f.field_category, f.ocr_pattern, f.validation_rule, i)
+        tpl_db.add_field(
+            tid,
+            f.field_name,
+            f.field_label or f.field_name,
+            f.field_category,
+            f.ocr_pattern,
+            f.validation_rule,
+            i,
+        )
     return {"id": tid, "status": "ok"}
 
 
@@ -75,7 +86,9 @@ def get_template(tid: int, session: dict = Depends(get_session)):
 
 
 @router.put("/{tid}")
-def update_template(tid: int, body: TemplateUpdate, session: dict = Depends(require_role("admin"))):
+def update_template(
+    tid: int, body: TemplateUpdate, session: dict = Depends(require_role("admin"))
+):
     template = tpl_db.get_template_by_id(tid)
     if not template:
         raise HTTPException(404, "模板不存在")
@@ -93,12 +106,28 @@ def update_template(tid: int, body: TemplateUpdate, session: dict = Depends(requ
     if updates:
         tpl_db.update_template(tid, **updates)
 
-    if body.requires_stamp is not None or body.stamp_position is not None or body.stamp_keywords is not None:
+    if (
+        body.requires_stamp is not None
+        or body.stamp_position is not None
+        or body.stamp_keywords is not None
+    ):
         _save_stamp_config(
             tid,
-            body.requires_stamp if body.requires_stamp is not None else template.get("requires_stamp", 1),
-            body.stamp_position if body.stamp_position is not None else template.get("stamp_position", ""),
-            body.stamp_keywords if body.stamp_keywords is not None else template.get("stamp_keywords", ""),
+            (
+                body.requires_stamp
+                if body.requires_stamp is not None
+                else template.get("requires_stamp", 1)
+            ),
+            (
+                body.stamp_position
+                if body.stamp_position is not None
+                else template.get("stamp_position", "")
+            ),
+            (
+                body.stamp_keywords
+                if body.stamp_keywords is not None
+                else template.get("stamp_keywords", "")
+            ),
         )
 
     if body.fields is not None:
@@ -146,8 +175,9 @@ def generate_example(tid: int, session: dict = Depends(require_role("admin"))):
         raise HTTPException(404, "模板不存在")
     try:
         from vision.example_generator import generate_example_for_template
+
         os.makedirs(EXAMPLE_IMAGE_DIR, exist_ok=True)
-        filename = f'{template["code"]}_example.jpg'
+        filename = f"{template['code']}_example.jpg"
         filepath = os.path.join(EXAMPLE_IMAGE_DIR, filename)
         img_bytes = generate_example_for_template(template)
         with open(filepath, "wb") as f:
@@ -162,11 +192,15 @@ def generate_example(tid: int, session: dict = Depends(require_role("admin"))):
 def _save_stamp_config(template_id, requires, stamp_pos, stamp_kw):
     from database.connection import get_db
     from sqlalchemy import text
+
     with get_db() as conn:
-        conn.execute(text(
-            "UPDATE doc_templates SET requires_stamp=:rs, stamp_position=:sp, "
-            "stamp_keywords=:sk WHERE id=:id"
-        ), {'rs': int(requires), 'sp': stamp_pos, 'sk': stamp_kw, 'id': template_id})
+        conn.execute(
+            text(
+                "UPDATE doc_templates SET requires_stamp=:rs, stamp_position=:sp, "
+                "stamp_keywords=:sk WHERE id=:id"
+            ),
+            {"rs": int(requires), "sp": stamp_pos, "sk": stamp_kw, "id": template_id},
+        )
 
 
 def _template_to_export_dict(template: dict) -> dict:

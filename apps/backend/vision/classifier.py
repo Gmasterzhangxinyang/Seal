@@ -16,7 +16,7 @@ def classify_document(full_text: str, extracted_fields: dict) -> tuple:
     scores = []
     for rule in rules:
         score = _compute_score(rule, full_text, extracted_fields)
-        scores.append((rule['code'], rule['name'], score))
+        scores.append((rule["code"], rule["name"], score))
 
     # 按分数降序排序
     scores.sort(key=lambda x: x[2], reverse=True)
@@ -36,14 +36,14 @@ def _compute_score(rule: dict, full_text: str, extracted_fields: dict) -> float:
     score = 0.0
 
     # 1. 关键词匹配 (权重 0.5)
-    keywords = rule.get('keywords', [])
+    keywords = rule.get("keywords", [])
     if keywords:
         matched = sum(1 for kw in keywords if kw in full_text)
         keyword_score = (matched / len(keywords)) * 0.5
         score += keyword_score
 
     # 2. 正则匹配 (固定加分 0.3)
-    regex = rule.get('regex', '')
+    regex = rule.get("regex", "")
     if regex:
         try:
             if re.search(regex, full_text):
@@ -52,14 +52,19 @@ def _compute_score(rule: dict, full_text: str, extracted_fields: dict) -> float:
             pass
 
     # 3. 必填字段命中 (权重 0.5)
-    template = get_template_by_code(rule['code'])
+    template = get_template_by_code(rule["code"])
     if template:
         required_fields = [
-            f['field_name'] for f in template.get('fields', [])
-            if f.get('field_category') == 'required'
+            f["field_name"]
+            for f in template.get("fields", [])
+            if f.get("field_category") == "required"
         ]
         if required_fields:
-            matched = sum(1 for f in required_fields if f in extracted_fields and extracted_fields[f])
+            matched = sum(
+                1
+                for f in required_fields
+                if f in extracted_fields and extracted_fields[f]
+            )
             field_score = (matched / len(required_fields)) * 0.5
             score += field_score
 

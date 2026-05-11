@@ -1,7 +1,6 @@
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 
 from api.deps import get_session
 from database.audit import get_recent_logs, get_log_by_id
@@ -22,20 +21,22 @@ def list_logs(session: dict = Depends(get_session)):
     for r in rows:
         # columns: id, timestamp, operator_id, doc_type, qr_content,
         #          doc_fields, ocr_text, result, errors, before_img, after_img, dms_doc_id
-        result.append({
-            "id": r[0],
-            "timestamp": r[1],
-            "operator_id": r[2],
-            "doc_type": r[3],
-            "doc_type_name": type_map.get(r[3], r[3] or "未知"),
-            "qr_content": r[4],
-            "result": r[7],
-            "errors": r[8],
-            "fields": r[5],
-            "ocr_text": r[6],
-            "before_image": _basename(r[9]),
-            "after_image": _basename(r[10]),
-        })
+        result.append(
+            {
+                "id": r[0],
+                "timestamp": r[1],
+                "operator_id": r[2],
+                "doc_type": r[3],
+                "doc_type_name": type_map.get(r[3], r[3] or "未知"),
+                "qr_content": r[4],
+                "result": r[7],
+                "errors": r[8],
+                "fields": r[5],
+                "ocr_text": r[6],
+                "before_image": _basename(r[9]),
+                "after_image": _basename(r[10]),
+            }
+        )
     return result
 
 

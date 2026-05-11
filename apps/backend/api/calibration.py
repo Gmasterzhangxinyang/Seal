@@ -44,7 +44,9 @@ class MoveSingleRequest(BaseModel):
 
 
 @router.post("/move_single")
-def cal_move_single(body: MoveSingleRequest, session: dict = Depends(require_role("admin"))):
+def cal_move_single(
+    body: MoveSingleRequest, session: dict = Depends(require_role("admin"))
+):
     try:
         logging.info(f"[标定] S{body.servo_id} -> PWM {body.pwm}")
         get_arm().move_single(body.servo_id, body.pwm, body.duration)
@@ -59,7 +61,9 @@ class MoveMultiRequest(BaseModel):
 
 
 @router.post("/move_multi")
-def cal_move_multi(body: MoveMultiRequest, session: dict = Depends(require_role("admin"))):
+def cal_move_multi(
+    body: MoveMultiRequest, session: dict = Depends(require_role("admin"))
+):
     try:
         get_arm().move_to({int(k): int(v) for k, v in body.pwms.items()}, body.duration)
         return {"status": "ok"}
@@ -75,7 +79,9 @@ class MoveMultiStageRequest(BaseModel):
 
 
 @router.post("/move_multi_stage")
-def cal_move_multi_stage(body: MoveMultiStageRequest, session: dict = Depends(require_role("admin"))):
+def cal_move_multi_stage(
+    body: MoveMultiStageRequest, session: dict = Depends(require_role("admin"))
+):
     try:
         arm = get_arm()
         cur = {int(k): v for k, v in body.current.items()}
@@ -100,7 +106,9 @@ class SaveCornerRequest(BaseModel):
 
 
 @router.post("/save_corner")
-def cal_save_corner(body: SaveCornerRequest, session: dict = Depends(require_role("admin"))):
+def cal_save_corner(
+    body: SaveCornerRequest, session: dict = Depends(require_role("admin"))
+):
     cal = load_calibration()
     if "corners" not in cal:
         cal["corners"] = {}
@@ -114,7 +122,9 @@ class TestStampRequest(BaseModel):
 
 
 @router.post("/test_stamp")
-def cal_test_stamp(body: TestStampRequest, session: dict = Depends(require_role("admin"))):
+def cal_test_stamp(
+    body: TestStampRequest, session: dict = Depends(require_role("admin"))
+):
     try:
         pwms = {int(k): int(v) for k, v in body.pwms.items()}
         logging.info(f"[标定] 测试盖章: pwms={pwms}")
@@ -129,7 +139,9 @@ class TestMoveRequest(BaseModel):
 
 
 @router.post("/test_move")
-def cal_test_move(body: TestMoveRequest, session: dict = Depends(require_role("admin"))):
+def cal_test_move(
+    body: TestMoveRequest, session: dict = Depends(require_role("admin"))
+):
     cal = load_calibration()
     corners = cal.get("corners", {})
     if body.corner not in corners:

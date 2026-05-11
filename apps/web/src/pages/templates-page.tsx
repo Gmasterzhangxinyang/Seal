@@ -11,12 +11,17 @@ export function TemplatesPage() {
     try {
       const data = await apiFetch<Template[]>('/templates')
       setTemplates(data)
-    } catch {} finally {
+    } catch {
+      /* network error */
+    } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { refresh() }, [])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refresh()
+  }, [])
 
   const handleDelete = async (id: number) => {
     if (!confirm('确定删除此模板？')) return
@@ -83,11 +88,17 @@ export function TemplatesPage() {
                     >
                       编辑
                     </Link>
-                    <button onClick={() => handleExport(tpl.id)} className="text-gray-500 hover:underline text-xs">
+                    <button
+                      onClick={() => handleExport(tpl.id)}
+                      className="text-gray-500 hover:underline text-xs"
+                    >
                       导出
                     </button>
                     {!tpl.is_system && (
-                      <button onClick={() => handleDelete(tpl.id)} className="text-red-500 hover:underline text-xs">
+                      <button
+                        onClick={() => handleDelete(tpl.id)}
+                        className="text-red-500 hover:underline text-xs"
+                      >
                         删除
                       </button>
                     )}

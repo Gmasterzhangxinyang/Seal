@@ -19,7 +19,10 @@ export function UsersPage() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load()
+  }, [load])
 
   const handleDelete = async (username: string) => {
     if (!confirm(`确定删除用户 "${username}" 吗？`)) return

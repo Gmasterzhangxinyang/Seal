@@ -33,21 +33,33 @@ class ResolveRequest(BaseModel):
 
 
 @router.post("/{review_id}/resolve")
-def resolve(review_id: int, body: ResolveRequest, session: dict = Depends(require_role("admin", "reviewer"))):
+def resolve(
+    review_id: int,
+    body: ResolveRequest,
+    session: dict = Depends(require_role("admin", "reviewer")),
+):
     if body.decision not in ("approved", "rejected"):
         raise HTTPException(400, "无效的决策")
     rq.resolve(review_id, session["username"], body.decision)
     if body.decision == "rejected":
         with get_db() as conn:
-            row = conn.execute(text(
-                "SELECT image_path, operator_id, doc_type FROM review_queue WHERE id=:id"
-            ), {"id": review_id}).fetchone()
+            row = conn.execute(
+                text(
+                    "SELECT image_path, operator_id, doc_type FROM review_queue WHERE id=:id"
+                ),
+                {"id": review_id},
+            ).fetchone()
         if row:
             actual_type = body.reclassify or row[2] or "review_rejected"
             log_action(
-                operator_id=row[1], doc_type=actual_type, qr_content=None,
-                doc_fields={}, result="REJECTED", errors=["人工复审拒绝"],
-                before_img=row[0], after_img=row[0],
+                operator_id=row[1],
+                doc_type=actual_type,
+                qr_content=None,
+                doc_fields={},
+                result="REJECTED",
+                errors=["人工复审拒绝"],
+                before_img=row[0],
+                after_img=row[0],
             )
     return {"status": "ok"}
 
@@ -58,13 +70,15 @@ def pending_stamps(session: dict = Depends(get_session)):
     type_map = tpl_db.get_type_name_map()
     result = []
     for item in items:
-        result.append({
-            "id": item[0],
-            "timestamp": item[1],
-            "operator_id": item[2],
-            "doc_type": item[3],
-            "doc_type_name": type_map.get(item[3], item[3] or "通用"),
-        })
+        result.append(
+            {
+                "id": item[0],
+                "timestamp": item[1],
+                "operator_id": item[2],
+                "doc_type": item[3],
+                "doc_type_name": type_map.get(item[3], item[3] or "通用"),
+            }
+        )
     return {"items": result}
 
 
