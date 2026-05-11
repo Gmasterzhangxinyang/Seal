@@ -80,10 +80,10 @@ def compute_position_at_xy(x: float, y: float, cal: dict | None = None) -> dict:
     if not corners or len(corners) < 4:
         raise RuntimeError('未完成四角标定')
 
-    tl = corners['top_left']
-    tr = corners['top_right']
-    bl = corners['bottom_left']
-    br = corners['bottom_right']
+    tl = corners['TL']
+    tr = corners['TR']
+    bl = corners['BL']
+    br = corners['BR']
 
     result = {}
     for sid in range(6):

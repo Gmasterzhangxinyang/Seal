@@ -70,6 +70,7 @@ from api.stats import router as stats_router
 from api.calibration import router as calibration_router
 from api.images import router as images_router
 from api.users import router as users_router
+from api.leave_applications import router as leave_applications_router
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(cameras_router, prefix="/api")
@@ -81,6 +82,7 @@ app.include_router(stats_router, prefix="/api")
 app.include_router(calibration_router, prefix="/api")
 app.include_router(images_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
+app.include_router(leave_applications_router, prefix="/api")
 
 
 def _mount_spa():

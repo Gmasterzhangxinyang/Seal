@@ -243,9 +243,9 @@ class DocumentProcessor:
             except Exception as e:
                 logger.warning(f'模板盖章位置解析失败: {e}')
 
-        # 方案 4: 回退到默认位置
-        logger.warning('所有定位方案均失败，使用默认位置盖章')
-        self.arm.stamp_at({0: self.arm.neutral_value, 2: self.arm.neutral_value})
+        # 方案 4: 回退到默认盖章序列
+        logger.warning('所有定位方案均失败，使用默认盖章序列')
+        self.arm.stamp_sequence()
 
     def shutdown(self):
         from vision.camera import SharedCamera

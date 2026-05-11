@@ -1,4 +1,5 @@
 import time
+import threading
 import logging
 from config import SERIAL_PORT, SERIAL_BAUD, SIMULATION_MODE
 from hardware.base import ArmBase
@@ -12,12 +13,6 @@ SERVO_NAMES = {0: '底盘', 1: '大臂', 2: '小臂', 3: '手腕', 4: '夹爪', 
 _VALUE_MIN = 500
 _VALUE_MAX = 2500
 _VALUE_MID = 1500
-
-# 盖章相关 PWM 值
-STAMP_DOWN_PWM = 2000
-STAMP_UP_PWM = 1500
-STAMP_WRIST_PWM = 1300
-WRIST_NEUTRAL_PWM = 1500
 
 
 def _cmd(servo_id: int, pwm: int, duration: int) -> bytes:
@@ -34,6 +29,7 @@ class WeArmController(ArmBase):
 
     _instance = None
     _ser = None
+    _lock = threading.RLock()
 
     def __new__(cls):
         if cls._instance is None:
@@ -79,8 +75,9 @@ class WeArmController(ArmBase):
         if SIMULATION_MODE:
             logger.info(f'[仿真] 发送: {data.decode()!r}')
             return
-        if self._ser and self._ser.is_open:
-            self._ser.write(data)
+        with self._lock:
+            if self._ser and self._ser.is_open:
+                self._ser.write(data)
 
     def move_to(self, positions: dict, duration: int = 1000):
         """移动到指定 PWM 位置。positions: {servo_id: pwm_value}"""
@@ -95,31 +92,28 @@ class WeArmController(ArmBase):
         time.sleep(duration / 1000 + 0.2)
 
     def stamp_at(self, position_values: dict):
-        """在指定位置执行盖章。position_values 包含 S0/S2 等定位关节的 PWM。"""
-        MOVE_TIME = 1200
-        HOLD_TIME = 0.9
-        LIFT_TIME = 1000
+        """在指定位置执行盖章：移动到目标位置 → 下压 → 抬起回中位"""
+        neutral = {i: _VALUE_MID for i in range(6)}
+        target = {i: int(position_values.get(i, _VALUE_MID)) for i in range(6)}
 
-        # 移动到目标位置上方（S1 保持抬起，S3 调整角度）
-        move_pwms = dict(position_values)
-        move_pwms[1] = STAMP_UP_PWM
-        move_pwms[3] = STAMP_WRIST_PWM
-        self.move_to(move_pwms, MOVE_TIME)
+        # 阶段1：移动到目标位置
+        self.move_to(target, 800)
+        time.sleep(1.0)
 
-        # S1 下压盖章
-        stamp_pwms = dict(move_pwms)
-        stamp_pwms[1] = STAMP_DOWN_PWM
-        self.move_to(stamp_pwms, MOVE_TIME)
-        time.sleep(HOLD_TIME)
+        # 阶段2：手腕下压
+        press = dict(target)
+        press[3] = 1630
+        self.move_to(press, 600)
+        time.sleep(0.7)
 
-        # 抬起
-        reset_pwms = dict(move_pwms)
-        reset_pwms[1] = STAMP_UP_PWM
-        reset_pwms[3] = WRIST_NEUTRAL_PWM
-        self.move_to(reset_pwms, LIFT_TIME)
+        # 阶段3：抬起回到中位
+        self.move_to(neutral, 800)
+        time.sleep(1.0)
 
-        # 回安全位置
-        self.move_to({i: _VALUE_MID for i in range(6)}, 1000)
+    def stamp_sequence(self):
+        """执行默认盖章动作序列（固定位置）"""
+        pos = {0: 1500, 1: 920, 2: 1655, 3: 1500, 4: 1500, 5: 1500}
+        self.stamp_at(pos)
 
     def ping(self) -> bool:
         if SIMULATION_MODE:

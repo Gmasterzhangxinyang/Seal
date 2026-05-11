@@ -3,7 +3,7 @@ import { CameraFeed } from '@/components/camera/camera-feed'
 import { usePendingStamps } from '@/hooks/use-pending-stamps'
 import { apiFetch, apiPost } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
-import type { StampResult, CameraListResponse } from '@/types/api'
+import type { StampResult, CameraListResponse, LeaveVerificationResult } from '@/types/api'
 
 export function StampPage() {
   const { items: pendingItems, refresh: refreshPending } = usePendingStamps()
@@ -12,6 +12,7 @@ export function StampPage() {
   const [cameras, setCameras] = useState<CameraListResponse | null>(null)
   const [camerasLoading, setCamerasLoading] = useState(true)
   const [switching, setSwitching] = useState(false)
+  const [stampMode, setStampMode] = useState<'general' | 'leave'>('general')
 
   useEffect(() => {
     setCamerasLoading(true)
@@ -27,12 +28,11 @@ export function StampPage() {
       await apiPost('/cameras/select', { index })
       apiFetch<CameraListResponse>('/cameras').then(setCameras)
     } finally {
-      // 后端 switch() 完成后摄像头已就绪，短暂延迟隐藏遮罩
       setTimeout(() => setSwitching(false), 1000)
     }
   }, [])
 
-  const triggerStamp = async () => {
+  const triggerGeneralStamp = async () => {
     setLoading(true)
     setResult(null)
     try {
@@ -48,6 +48,33 @@ export function StampPage() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const triggerLeaveStamp = async () => {
+    setLoading(true)
+    setResult(null)
+    try {
+      const data = await apiPost<LeaveVerificationResult>('/stamp/leave')
+      if (data.success) {
+        setResult({ status: 'approved', message: '验证通过，已盖章', fields: {} })
+      } else if (data.decision === 'REVIEW') {
+        setResult({ status: 'pending_review', message: '验证不确定，已进入人工复审', warnings: data.warnings, fields: {} })
+      } else {
+        setResult({ status: 'rejected', errors: data.errors, warnings: data.warnings, fields: {} })
+      }
+    } catch (err) {
+      setResult({ status: 'error', message: err instanceof Error ? err.message : '未知错误' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const triggerStamp = () => {
+    if (stampMode === 'leave') {
+      triggerLeaveStamp()
+    } else {
+      triggerGeneralStamp()
     }
   }
 
@@ -130,6 +157,25 @@ export function StampPage() {
         </div>
       </div>
 
+      {/* 盖章模式切换 */}
+      <div className="mb-4 flex items-center justify-center gap-4">
+        <span className="text-sm text-gray-500">盖章模式：</span>
+        <div className="flex rounded-lg border overflow-hidden">
+          <button
+            onClick={() => setStampMode('general')}
+            className={cn('px-4 py-1.5 text-sm font-medium transition', stampMode === 'general' ? 'bg-[#457b9d] text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}
+          >
+            通用文档
+          </button>
+          <button
+            onClick={() => setStampMode('leave')}
+            className={cn('px-4 py-1.5 text-sm font-medium transition', stampMode === 'leave' ? 'bg-[#457b9d] text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}
+          >
+            请假条核验
+          </button>
+        </div>
+      </div>
+
       {/* 盖章按钮 */}
       <div className="mb-4">
         <button
@@ -142,7 +188,7 @@ export function StampPage() {
             'disabled:bg-gray-400 disabled:cursor-not-allowed disabled:shadow-none disabled:scale-100'
           )}
         >
-          扫描<br />&<br />盖章
+          {stampMode === 'leave' ? '扫描请假条\n并核验盖章' : '扫描\n&\n盖章'}
         </button>
       </div>
 

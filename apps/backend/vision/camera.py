@@ -8,8 +8,8 @@ from config import CAMERA_INDEX, CAMERA_BACKEND, AUDIT_IMAGE_DIR
 
 logger = logging.getLogger(__name__)
 
-# 目标分辨率
-_TARGET_W, _TARGET_H = 1920, 1080
+# 目标分辨率（文档扫描用 1280x720 更好，景深大不容易糊）
+_TARGET_W, _TARGET_H = 1280, 720
 # 支持的四字符编码格式（优先 MJPG，USB 摄像头高分辨率通常需要）
 _FOURCC_OPTIONS = [
     cv2.VideoWriter_fourcc(*'MJPG'),
@@ -17,19 +17,26 @@ _FOURCC_OPTIONS = [
 ]
 
 
-def _set_exposure(cap):
-    """设置曝光/白平衡/自动对焦并记录结果。"""
+def _set_exposure(cap, for_external=False):
+    """设置曝光/白平衡/自动对焦并记录结果。外部摄像头用手动曝光+更高增益。"""
     results = {}
-    for prop, val, name in [
-        (cv2.CAP_PROP_AUTO_EXPOSURE, 3, 'AUTO_EXPOSURE'),
-        (cv2.CAP_PROP_AUTO_WB, 1, 'AUTO_WB'),
-        (cv2.CAP_PROP_AUTOFOCUS, 1, 'AUTOFOCUS'),
-    ]:
-        ok = cap.set(prop, val)
-        results[name] = ok
-        if not ok:
-            logger.warning(f'cap.set({name}, {val}) 返回 False，摄像头可能不支持')
-    logger.info(f'曝光设置结果: {results}')
+    if for_external:
+        # 外部摄像头：禁用自动曝光，手动拉高亮度
+        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # manual mode
+        cap.set(cv2.CAP_PROP_EXPOSURE, 80)           # 拉高曝光
+        cap.set(cv2.CAP_PROP_BRIGHTNESS, 140)        # 拉高亮度
+    else:
+        for prop, val, name in [
+            (cv2.CAP_PROP_AUTO_EXPOSURE, 1, 'AUTO_EXPOSURE'),
+            (cv2.CAP_PROP_AUTO_WB, 1, 'AUTO_WB'),
+            (cv2.CAP_PROP_AUTOFOCUS, 1, 'AUTOFOCUS'),
+        ]:
+            ok = cap.set(prop, val)
+            results[name] = ok
+            if not ok:
+                logger.warning(f'cap.set({name}, {val}) 返回 False，摄像头可能不支持')
+    mode = 'manual' if not results else str(results)
+    logger.info('曝光设置结果: %s', mode)
 
 
 def _try_open(index, backend, retries, retry_delay):
@@ -41,8 +48,6 @@ def _try_open(index, backend, retries, retry_delay):
             if attempt < retries:
                 time.sleep(retry_delay)
             continue
-
-        _set_exposure(cap)
 
         best_w, best_h = 0, 0
         for fourcc in _FOURCC_OPTIONS:

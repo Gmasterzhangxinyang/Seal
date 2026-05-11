@@ -23,8 +23,12 @@ export function CalibrationPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const moveSingle = async (servoId: number, pwm: number) => {
-    await apiPost('/calibration/move_single', { servo_id: servoId, pwm, duration: 300 })
+  const TARGET_POSES = {
+    快速定位: { 0: 1500, 1: 800, 2: 1500, 3: 1700, 4: 1500, 5: 1500 },
+  }
+
+  const moveSingle = (servoId: number, pwm: number) => {
+    apiPost('/calibration/move_single', { servo_id: servoId, pwm, duration: 20 })
   }
 
   const handleSliderChange = (servoId: number, value: number) => {
@@ -43,6 +47,10 @@ export function CalibrationPage() {
     if (config) {
       setServos(Object.fromEntries(Array.from({ length: 6 }, (_, i) => [i, config.value_mid])))
     }
+  }
+
+  const goPreset = async (pwms: Record<string, number>) => {
+    await apiPost('/calibration/move_multi', { pwms })
   }
 
   const ping = async () => {
@@ -78,13 +86,41 @@ export function CalibrationPage() {
                 type="range"
                 min={config.value_min}
                 max={config.value_max}
-                value={servos[i] || config.value_mid}
+                value={servos[i] ?? config.value_mid}
                 onChange={(e) => handleSliderChange(i, parseInt(e.target.value))}
                 className="flex-1"
               />
-              <span className="w-16 text-sm font-mono text-right">{servos[i] || config.value_mid}</span>
+              <span className="w-16 text-sm font-mono text-right">{servos[i] ?? config.value_mid}</span>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow p-6">
+        <h3 className="font-semibold mb-4">快速定位</h3>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(TARGET_POSES).map(([name, pwms]) => (
+            <button
+              key={name}
+              onClick={() => goPreset(pwms)}
+              className="px-4 py-2 bg-[#1d3557] text-white rounded-lg text-sm hover:opacity-90"
+            >
+              {name}
+            </button>
+          ))}
+          <button
+            onClick={async () => {
+              if (confirm('确定执行盖章动作？')) {
+                await apiPost('/calibration/test_stamp_sequence')
+              }
+            }}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:opacity-90 font-bold"
+          >
+            测试盖章
+          </button>
+        </div>
+        <div className="mt-3 text-xs text-gray-500 font-mono">
+          {Object.entries(TARGET_POSES.快速定位).map(([s, v]) => `S${s}=${v}`).join('  ')}
         </div>
       </div>
 

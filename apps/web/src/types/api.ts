@@ -115,3 +115,44 @@ export interface ArmConfig {
   value_max: number
   value_mid: number
 }
+
+// ─── 请假申请相关类型 ─────────────────────────────────────────────────────────
+
+export interface LeaveApplication {
+  id: number
+  application_id: string
+  student_id: string
+  student_name: string
+  dept: string | null
+  leave_type: string
+  start_date: string
+  end_date: string
+  reason: string
+  status: string
+  qr_content: string | null
+  approved_by: string | null
+  approved_at: string | null
+  stamped_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface LeaveVerificationResult {
+  success: boolean
+  task_id?: string
+  application_id?: string
+  decision: string
+  risk_score: number
+  checks: VerificationCheck[]
+  errors: string[]
+  warnings: string[]
+  before_img?: string | null
+  after_img?: string | null
+}
+
+export interface VerificationCheck {
+  name: string
+  result: string
+  score: number
+  reason: string
+}

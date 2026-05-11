@@ -169,10 +169,10 @@ def pixel_to_world(cx: float, cy: float,
     world_corners = cal.get('world_corners')
     if world_corners and len(world_corners) == 4:
         # 使用标定的世界坐标进行插值
-        tl = world_corners['top_left']
-        tr = world_corners['top_right']
-        bl = world_corners['bottom_left']
-        br = world_corners['bottom_right']
+        tl = world_corners['TL']
+        tr = world_corners['TR']
+        bl = world_corners['BL']
+        br = world_corners['BR']
     else:
         # 回退: 使用标定的 PWM 值 + IK 逆推
         # 通过 PWM 值推算世界坐标 (简化: 使用默认工作面)

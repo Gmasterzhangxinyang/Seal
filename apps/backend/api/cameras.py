@@ -88,7 +88,7 @@ def _gen_frames():
                             cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
                 cv2.putText(frame, "Check connection or try another camera", (30, frame.shape[0] // 2 + 20),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 1)
-            _, buf = cv2.imencode(".jpg", frame)
+            _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
             yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n"
     except Exception:
         time.sleep(1)

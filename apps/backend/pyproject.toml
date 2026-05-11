@@ -22,4 +22,7 @@ dependencies = [
     "cryptography>=42.0",
     "alembic>=1.13",
     "setuptools>=82.0.1",
+    "qrcode>=8.2",
+    "reportlab>=4.5.0",
+    "openai>=2.36.0",
 ]

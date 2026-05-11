@@ -175,8 +175,13 @@ def extract_fields_by_template(full_text: str, template_code: str) -> dict:
         try:
             m = re.search(pattern, full_text)
             if m:
-                # 取第一个捕获组，否则取整个匹配
-                fields[name] = m.group(1) if m.lastindex else m.group(0)
+                if m.lastindex and m.lastindex >= 2:
+                    # 多捕获组（如日期年/月/日）：用 '-' 拼接所有组
+                    fields[name] = '-'.join(m.group(i) for i in range(1, m.lastindex + 1))
+                elif m.lastindex:
+                    fields[name] = m.group(1)
+                else:
+                    fields[name] = m.group(0)
         except re.error:
             pass
 

@@ -5,6 +5,7 @@ import { CameraFeed } from '@/components/camera/camera-feed'
 
 const navItems = [
   { path: '/', label: '操作台' },
+  { path: '/applications', label: '请假申请' },
   { path: '/logs', label: '审计日志', roles: ['admin', 'reviewer'] },
   { path: '/review', label: '人工复审', roles: ['admin', 'reviewer'] },
   { path: '/admin/templates', label: '模板管理', roles: ['admin'] },

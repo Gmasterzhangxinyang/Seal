@@ -10,13 +10,20 @@ from PIL import Image, ImageDraw, ImageFont
 def _get_font(size):
     """尝试加载中文字体，找不到就用默认字体"""
     font_candidates = [
+        '/Windows/Fonts/msyh.ttc',          # 微软雅黑
+        '/Windows/Fonts/msyhbd.ttc',        # 微软雅黑粗体
+        '/Windows/Fonts/simhei.ttf',         # 黑体
+        '/Windows/Fonts/simsun.ttc',         # 宋体
+        '/Windows/Fonts/simkai.ttf',         # 楷体
+        '/Windows/Fonts/STKAITI.TTF',        # 华文楷体
+        '/Windows/Fonts/STSONG.TTF',         # 华文宋体
+        '/Windows/Fonts/STHEITI.TTF',        # 华文黑体
         '/System/Library/Fonts/STHeiti Light.ttc',
         '/System/Library/Fonts/PingFang.ttc',
         '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
         '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
         '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
         '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
-        '/Windows/Fonts/msyh.ttc',
     ]
     for path in font_candidates:
         if os.path.exists(path):
@@ -24,7 +31,7 @@ def _get_font(size):
                 return ImageFont.truetype(path, size)
             except Exception:
                 continue
-    return ImageFont.load_default()
+    return ImageFont.load_default(size=size)
 
 
 # 字段样例值
@@ -75,14 +82,9 @@ def generate_example_for_template(template: dict) -> bytes:
         validation_rule = field_def.get('validation_rule', '')
 
         if category == 'forbidden':
-            # 非法字段：红色删除线标注
-            draw.text((60, y), f'{flabel}：', fill='#999999', font=font_label)
-            forbidden_text = '【不应出现】'
-            text_x = 200
-            draw.text((text_x, y), forbidden_text, fill='#CC0000', font=font_value)
-            # 删除线
-            bbox = draw.textbbox((text_x, y), forbidden_text, font=font_value)
-            draw.line([bbox[0], y + 9, bbox[2], y + 9], fill='#CC0000', width=2)
+            # 非法字段：灰色标注，不写文字内容（避免 OCR 误匹配）
+            draw.text((60, y), f'{flabel}：', fill='#CCCCCC', font=font_label)
+            draw.text((200, y), '—', fill='#CCCCCC', font=font_value)
             draw.line([60, y + 26, W - 60, y + 26], fill='#FFE0E0', width=1)
         else:
             # 必填/选填字段：显示样例值

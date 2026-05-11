@@ -12,6 +12,9 @@ import { TemplateEditPage } from '@/pages/template-edit-page'
 import { StatsPage } from '@/pages/stats-page'
 import { CalibrationPage } from '@/pages/calibration-page'
 import { UsersPage } from '@/pages/users-page'
+import { LeaveApplicationsPage } from '@/pages/LeaveApplicationsPage'
+import { NewLeaveApplicationPage } from '@/pages/NewLeaveApplicationPage'
+import { LeaveApplicationDetailPage } from '@/pages/LeaveApplicationDetailPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthStore()
@@ -59,6 +62,9 @@ export default function App() {
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/calibration" element={<CalibrationPage />} />
           <Route path="/admin/users" element={<UsersPage />} />
+          <Route path="/applications" element={<LeaveApplicationsPage />} />
+          <Route path="/applications/new" element={<NewLeaveApplicationPage />} />
+          <Route path="/applications/:applicationId" element={<LeaveApplicationDetailPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

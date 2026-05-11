@@ -1,8 +1,63 @@
 import logging
+import secrets
+import json
+import base64
+import os
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from api.deps import get_session
+from database.connection import get_db
+
+
+def _gpt4v_extract(image_path: str) -> dict:
+    """使用 GPT-4 Vision 识别图片中的请假条字段"""
+    from openai import OpenAI
+    from config import OPENAI_API_KEY
+
+    client = OpenAI(api_key=OPENAI_API_KEY)
+
+    with open(image_path, 'rb') as f:
+        img_data = base64.b64encode(f.read()).decode('utf-8')
+
+    prompt = """你是一请假条识别助手。请仔细看这张请假条图片，提取以下字段信息，以JSON格式返回：
+- application_id: 申请编号（如有）
+- student_name: 学生姓名
+- student_id: 学号
+- dept: 院系（可有可无）
+- leave_type: 请假类型（事假/病假/其他）
+- start_date: 开始日期（格式YYYY-MM-DD）
+- end_date: 结束日期（格式YYYY-MM-DD）
+- reason: 请假原因
+
+要求：
+1. 只返回JSON，不要有其他文字
+2. 日期如果不是标准格式请转换为 YYYY-MM-DD
+3. 如果某个字段完全无法识别，设为 null
+4. 识别要严格准确，特别注意学号和姓名的对应关系"""
+    try:
+        response = client.responses.create(
+            model="gpt-4o",
+            input=[{
+                "role": "user",
+                "content": [
+                    {"type": "input_image", "image_url": f"data:image/jpeg;base64,{img_data}"},
+                    {"type": "input_text", "text": prompt}
+                ]
+            }]
+        )
+        text = response.output_text.strip()
+        # 尝试解析JSON
+        if '{' in text and '}' in text:
+            json_str = text[text.index('{'):text.rindex('}')+1]
+            return json.loads(json_str)
+        else:
+            logging.warning(f"[gpt4v] 返回不是JSON格式: {text}")
+            return {}
+    except Exception as e:
+        logging.error(f"[gpt4v] GPT-4 Vision 调用失败: {e}")
+        return {}
 
 router = APIRouter(tags=["stamp"])
 
@@ -28,6 +83,194 @@ def stamp(session: dict = Depends(get_session)):
         raise HTTPException(500, str(e))
 
 
+@router.post("/stamp/leave")
+def stamp_leave(session: dict = Depends(get_session)):
+    """扫描请假条并核验盖章"""
+    try:
+        from vision.camera import SharedCamera
+        from vision.qr_scanner import scan_qr
+        from vision.leave_extractor import extract_leave_fields_from_template
+        from validator.leave_validator import verify_leave_application, LeaveVerificationResult
+        from database.audit import log_action
+        from config import SIMULATION_MODE
+
+        operator_id = session["username"]
+        logging.info(f"[stamp/leave] 开始处理，用户: {operator_id}")
+
+        # 1. 拍照
+        camera = SharedCamera.get_instance()
+        before_img = camera.capture_timestamped('leave_before')
+        logging.info(f"[stamp/leave] 拍摄 before: {before_img}")
+
+        # 2. 二维码扫描
+        qr_content, doc_type = scan_qr(before_img)
+        if not qr_content:
+            return {
+                'success': False,
+                'decision': 'REJECT',
+                'risk_score': 70,
+                'errors': ['未扫描到二维码'],
+                'checks': [],
+                'warnings': [],
+            }
+
+        # 3. 二维码解析（只验证是否为 leave 类型，不在这里验签）
+        try:
+            qr_data = json.loads(qr_content)
+        except Exception:
+            return {
+                'success': False,
+                'decision': 'REJECT',
+                'risk_score': 70,
+                'errors': ['二维码内容解析失败'],
+                'checks': [],
+                'warnings': [],
+            }
+
+        # 判断是否为请假条二维码
+        if 'application_id' not in qr_data:
+            return {
+                'success': False,
+                'decision': 'REJECT',
+                'risk_score': 70,
+                'errors': ['二维码不是请假条二维码'],
+                'checks': [],
+                'warnings': [],
+            }
+
+        application_id = qr_data.get('application_id', '')
+
+        # 4. OCR 识别
+        fields, full_text, boxes = _ocr_with_boxes(before_img)
+        ocr_confidence = _estimate_ocr_confidence(fields, full_text)
+        extracted_fields = extract_leave_fields_from_template(full_text, 'leave')
+        logging.info(f"[stamp/leave] OCR 字段: {extracted_fields}")
+
+        # 5. 核验
+        from utils.qr_sign import qr_string_to_payload
+        qr_payload = qr_string_to_payload(qr_content)
+        verification_result = verify_leave_application(qr_content, extracted_fields, ocr_confidence)
+        vresult_dict = verification_result.to_dict()
+
+        # 6. 创建 StampTask
+        task_id = f"STAMP-{datetime.now().strftime('%Y%m%d%H%M%S')}-{secrets.token_hex(4)}"
+        now = datetime.now().isoformat()
+
+        with get_db() as conn:
+            from sqlalchemy import text
+            conn.execute(text("""
+                INSERT INTO stamp_tasks
+                (task_id, application_id, operator_id, doc_type, status, decision,
+                 risk_score, before_img, qr_content, extracted_fields,
+                 verification_result, created_at, updated_at)
+                VALUES
+                (:task_id, :application_id, :operator_id, 'leave', 'CREATED',
+                 :decision, :risk_score, :before_img, :qr_content,
+                 :extracted_fields, :verification_result, :created_at, :updated_at)
+            """), {
+                'task_id': task_id,
+                'application_id': application_id,
+                'operator_id': operator_id,
+                'decision': vresult_dict['decision'],
+                'risk_score': vresult_dict['risk_score'],
+                'before_img': before_img,
+                'qr_content': qr_content,
+                'extracted_fields': json.dumps(extracted_fields, ensure_ascii=False),
+                'verification_result': json.dumps(vresult_dict, ensure_ascii=False),
+                'created_at': now,
+                'updated_at': now,
+            })
+
+            # 保存 verification_results
+            for check in vresult_dict.get('checks', []):
+                conn.execute(text("""
+                    INSERT INTO verification_results
+                    (task_id, check_name, result, score, reason, created_at)
+                    VALUES (:task_id, :check_name, :result, :score, :reason, :created_at)
+                """), {
+                    'task_id': task_id,
+                    'check_name': check['name'],
+                    'result': check['result'],
+                    'score': check['score'],
+                    'reason': check['reason'],
+                    'created_at': now,
+                })
+
+        # 7. 决策处理
+        decision = vresult_dict['decision']
+        after_img = None
+
+        if decision == 'PASS':
+            # 盖章前再次拍照确认纸张未移动
+            pre_stamp_img = camera.capture_timestamped('leave_pre_stamp')
+            if _paper_moved(before_img, pre_stamp_img):
+                decision = 'REVIEW'
+                vresult_dict['decision'] = 'REVIEW'
+                vresult_dict['warnings'].append('盖章前检测到纸张位置移动，进入人工复审')
+            else:
+                # 执行盖章
+                if SIMULATION_MODE:
+                    logging.info(f"[stamp/leave] 仿真模式，跳过机械臂")
+                    after_img = camera.capture_timestamped('leave_after')
+                    _update_stamp_task(task_id, 'STAMPED', 'PASS', before_img, after_img)
+                    _mark_leave_stamped(application_id, operator_id)
+                else:
+                    _do_leave_stamp(before_img, boxes)
+                    after_img = camera.capture_timestamped('leave_after')
+                    _update_stamp_task(task_id, 'STAMPED', 'PASS', before_img, after_img)
+                    _mark_leave_stamped(application_id, operator_id)
+
+        elif decision == 'REVIEW':
+            # 进入人工复审队列
+            with get_db() as conn:
+                conn.execute(text("""
+                    INSERT INTO review_queue
+                    (timestamp, operator_id, doc_type, doc_fields, ocr_text, warnings, image_path, status)
+                    VALUES (:timestamp, :operator_id, 'leave', :doc_fields, :ocr_text, :warnings, :image_path, 'pending')
+                """), {
+                    'timestamp': now,
+                    'operator_id': operator_id,
+                    'doc_fields': json.dumps(extracted_fields, ensure_ascii=False),
+                    'ocr_text': full_text,
+                    'warnings': json.dumps(vresult_dict.get('warnings', []), ensure_ascii=False),
+                    'image_path': before_img,
+                })
+            _update_stamp_task(task_id, 'REVIEW', decision, before_img, None)
+
+        elif decision == 'REJECT':
+            _update_stamp_task(task_id, 'REJECT', decision, before_img, None)
+
+        # 8. 写入审计日志
+        log_action(
+            operator_id=operator_id,
+            doc_type='leave',
+            qr_content=qr_content,
+            doc_fields=extracted_fields,
+            result=decision,
+            errors=vresult_dict.get('errors', []),
+            before_img=before_img,
+            after_img=after_img,
+            ocr_text=full_text,
+        )
+
+        return {
+            'success': decision in ('PASS', 'REVIEW'),
+            'task_id': task_id,
+            'application_id': application_id,
+            'decision': decision,
+            'risk_score': vresult_dict['risk_score'],
+            'checks': vresult_dict['checks'],
+            'errors': vresult_dict['errors'],
+            'warnings': vresult_dict['warnings'],
+            'before_img': before_img,
+            'after_img': after_img,
+        }
+
+    except Exception as e:
+        logging.exception("[stamp/leave] 处理时出错")
+        raise HTTPException(500, str(e))
+
+
 @router.post("/review/{review_id}/stamp")
 def review_stamp(review_id: int, session: dict = Depends(get_session)):
     try:
@@ -36,3 +279,96 @@ def review_stamp(review_id: int, session: dict = Depends(get_session)):
     except Exception as e:
         logging.exception("复审盖章失败")
         raise HTTPException(500, str(e))
+
+
+# ─── 辅助函数 ─────────────────────────────────────────────────────────────────
+
+def _ocr_with_boxes(image_path: str):
+    """OCR 识别，返回 (fields, full_text, boxes)"""
+    from vision.ocr import extract_fields_with_positions
+    try:
+        fields, full_text, boxes = extract_fields_with_positions(image_path)
+    except Exception:
+        from vision.ocr import extract_fields
+        fields, full_text = extract_fields(image_path)
+        boxes = []
+    return fields, full_text, boxes
+
+
+def _estimate_ocr_confidence(fields: dict, full_text: str) -> float:
+    """粗略估计 OCR 置信度"""
+    if not full_text:
+        return 0.3
+    # 有足够字段且文本长度足够，认为置信度较高
+    filled = sum(1 for v in fields.values() if v)
+    if filled >= 4 and len(full_text) > 50:
+        return 0.9
+    elif filled >= 2:
+        return 0.7
+    return 0.5
+
+
+def _paper_moved(img1_path: str, img2_path: str, threshold: float = 0.7) -> bool:
+    """检测纸张是否明显移动"""
+    try:
+        import cv2
+        import numpy as np
+        img1 = cv2.imread(img1_path)
+        img2 = cv2.imread(img2_path)
+        if img1 is None or img2 is None:
+            return False
+        gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+        gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+        diff = cv2.absdiff(gray1, gray2)
+        moved_ratio = np.sum(diff > 30) / diff.size
+        return moved_ratio > (1 - threshold)
+    except Exception:
+        return False
+
+
+def _update_stamp_task(task_id: str, status: str, decision: str,
+                      before_img: str | None, after_img: str | None):
+    from database.connection import get_db
+    from sqlalchemy import text
+    now = datetime.now().isoformat()
+    with get_db() as conn:
+        conn.execute(text("""
+            UPDATE stamp_tasks
+            SET status=:status, decision=:decision,
+                before_img=COALESCE(:before_img, before_img),
+                after_img=COALESCE(:after_img, after_img),
+                updated_at=:updated_at
+            WHERE task_id=:task_id
+        """), {
+            'task_id': task_id,
+            'status': status,
+            'decision': decision,
+            'before_img': before_img,
+            'after_img': after_img,
+            'updated_at': now,
+        })
+
+
+def _mark_leave_stamped(application_id: str, operator_id: str):
+    from database.connection import get_db
+    from sqlalchemy import text
+    now = datetime.now().isoformat()
+    with get_db() as conn:
+        conn.execute(text("""
+            UPDATE leave_applications
+            SET status='STAMPED', stamped_at=:stamped_at, updated_at=:updated_at
+            WHERE application_id=:application_id
+        """), {
+            'application_id': application_id,
+            'stamped_at': now,
+            'updated_at': now,
+        })
+
+
+def _do_leave_stamp(image_path: str, boxes: list | None):
+    """请假条盖章（调用机械臂）"""
+    try:
+        processor = get_processor()
+        processor._do_stamp(image_path, boxes, 'leave')
+    except Exception as e:
+        logging.warning(f"[stamp/leave] 机械臂盖章失败: {e}")

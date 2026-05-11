@@ -104,6 +104,62 @@ class TemplateExample(Base):
     generated_at: Mapped[str] = mapped_column(String(30), nullable=False)
 
 
+# ─── 请假申请相关模型 ──────────────────────────────────────────────────────────
+
+class LeaveApplication(Base):
+    __tablename__ = 'leave_applications'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    student_id: Mapped[str] = mapped_column(String(20), nullable=False)
+    student_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    dept: Mapped[str | None] = mapped_column(String(100))
+    leave_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    start_date: Mapped[str] = mapped_column(String(30), nullable=False)
+    end_date: Mapped[str] = mapped_column(String(30), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, server_default='SUBMITTED')
+    qr_content: Mapped[str | None] = mapped_column(Text)
+    approved_by: Mapped[str | None] = mapped_column(String(50))
+    approved_at: Mapped[str | None] = mapped_column(String(30))
+    stamped_at: Mapped[str | None] = mapped_column(String(30))
+    created_at: Mapped[str] = mapped_column(String(30), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class StampTask(Base):
+    __tablename__ = 'stamp_tasks'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    application_id: Mapped[str | None] = mapped_column(String(64))
+    operator_id: Mapped[str | None] = mapped_column(String(50))
+    doc_type: Mapped[str] = mapped_column(String(50), server_default='leave')
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    decision: Mapped[str | None] = mapped_column(String(30))
+    risk_score: Mapped[int] = mapped_column(Integer, server_default='0')
+    before_img: Mapped[str | None] = mapped_column(String(500))
+    after_img: Mapped[str | None] = mapped_column(String(500))
+    qr_content: Mapped[str | None] = mapped_column(Text)
+    extracted_fields: Mapped[str | None] = mapped_column(Text)
+    verification_result: Mapped[str | None] = mapped_column(Text)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(String(30), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class VerificationResult(Base):
+    __tablename__ = 'verification_results'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    check_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    result: Mapped[str] = mapped_column(String(30), nullable=False)
+    score: Mapped[int] = mapped_column(Integer, server_default='0')
+    reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
 def init_db():
     """创建所有不存在的表。"""
     from database.connection import engine

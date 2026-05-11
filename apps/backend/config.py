@@ -36,7 +36,7 @@ def _auto_detect_serial_port() -> str:
         logging.warning(f'串口自动检测失败: {e}')
     return ''
 
-SERIAL_PORT = _auto_detect_serial_port()
+SERIAL_PORT = 'COM10'
 
 
 # ─── 摄像头 ──────────────────────────────────────────────────────────────────
@@ -165,5 +165,7 @@ ARM_L3 = 50.0    # 腕到末端执行器/印章的距离 (mm)
 SIMULATION_MODE = False
 
 # ─── 纸张检测 ─────────────────────────────────────────────────────────────────
-# False = 跳过纸张检测，直接拍照识别（固定纸张位置时使用）
-PAPER_DETECTION_ENABLED = False
+PAPER_DETECTION_ENABLED = True
+
+# ─── OpenAI Vision ──────────────────────────────────────────────────────────────
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
