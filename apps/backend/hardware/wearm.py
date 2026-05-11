@@ -2,17 +2,14 @@ import time
 import threading
 import logging
 from config import SERIAL_PORT, SERIAL_BAUD, SIMULATION_MODE
-from hardware.base import ArmBase
 
 logger = logging.getLogger(__name__)
 
-# WeArm 舵机名称映射
 SERVO_NAMES = {0: '底盘', 1: '大臂', 2: '小臂', 3: '手腕', 4: '夹爪', 5: '辅助'}
 
-# WeArm PWM 值范围
-_VALUE_MIN = 500
-_VALUE_MAX = 2500
-_VALUE_MID = 1500
+PWM_MIN = 500
+PWM_MAX = 2500
+PWM_MID = 1500
 
 
 def _cmd(servo_id: int, pwm: int, duration: int) -> bytes:
@@ -24,8 +21,8 @@ def _cmd_multi(*cmds) -> bytes:
     return f'{{{body}}}'.encode()
 
 
-class WeArmController(ArmBase):
-    """老款 WeArm 机械臂控制器（PWM 文本协议，CH340，115200 波特率）"""
+class WeArmController:
+    """WeArm 机械臂控制器（PWM 文本协议，CH340，115200 波特率）"""
 
     _instance = None
     _ser = None
@@ -42,26 +39,14 @@ class WeArmController(ArmBase):
         elif SIMULATION_MODE:
             logger.info('[仿真模式] WeArmController 已初始化')
 
-    @property
-    def neutral_value(self) -> int:
-        return _VALUE_MID
-
-    @property
-    def value_min(self) -> int:
-        return _VALUE_MIN
-
-    @property
-    def value_max(self) -> int:
-        return _VALUE_MAX
-
     def _connect(self):
         import serial
         try:
             self._ser = serial.Serial(SERIAL_PORT, SERIAL_BAUD, timeout=3)
             time.sleep(2)
             self._send(_cmd_multi(
-                (0, _VALUE_MID, 1000), (1, _VALUE_MID, 1000), (2, _VALUE_MID, 1000),
-                (3, _VALUE_MID, 1000), (4, _VALUE_MID, 1000), (5, _VALUE_MID, 1000),
+                (0, PWM_MID, 1000), (1, PWM_MID, 1000), (2, PWM_MID, 1000),
+                (3, PWM_MID, 1000), (4, PWM_MID, 1000), (5, PWM_MID, 1000),
             ))
             time.sleep(1.5)
             logger.info(f'WeArm 已连接: {SERIAL_PORT}')
@@ -87,26 +72,23 @@ class WeArmController(ArmBase):
 
     def move_single(self, servo_id: int, position: int, duration: int = 500):
         """控制单个舵机"""
-        pwm = max(_VALUE_MIN, min(_VALUE_MAX, int(position)))
+        pwm = max(PWM_MIN, min(PWM_MAX, int(position)))
         self._send(_cmd(servo_id, pwm, duration))
         time.sleep(duration / 1000 + 0.2)
 
     def stamp_at(self, position_values: dict):
         """在指定位置执行盖章：移动到目标位置 → 下压 → 抬起回中位"""
-        neutral = {i: _VALUE_MID for i in range(6)}
-        target = {i: int(position_values.get(i, _VALUE_MID)) for i in range(6)}
+        neutral = {i: PWM_MID for i in range(6)}
+        target = {i: int(position_values.get(i, PWM_MID)) for i in range(6)}
 
-        # 阶段1：移动到目标位置
         self.move_to(target, 800)
         time.sleep(1.0)
 
-        # 阶段2：手腕下压
         press = dict(target)
         press[3] = 1630
         self.move_to(press, 600)
         time.sleep(0.7)
 
-        # 阶段3：抬起回到中位
         self.move_to(neutral, 800)
         time.sleep(1.0)
 

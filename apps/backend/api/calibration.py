@@ -3,8 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from api.deps import get_session, require_role
-from hardware.arm import load_calibration, save_calibration, create_controller
-from config import ARM_TYPE
+from hardware.base import load_calibration, save_calibration
+from hardware.wearm import WeArmController
 
 router = APIRouter(prefix="/calibration", tags=["calibration"])
 
@@ -14,7 +14,7 @@ _arm = None
 def get_arm():
     global _arm
     if _arm is None:
-        _arm = create_controller()
+        _arm = WeArmController()
     return _arm
 
 
@@ -166,10 +166,9 @@ def cal_test_stamp_sequence(session: dict = Depends(require_role("admin"))):
 
 @router.get("/config")
 def cal_config(session: dict = Depends(get_session)):
-    arm = get_arm()
     return {
-        "arm_type": ARM_TYPE,
-        "value_min": arm.value_min,
-        "value_max": arm.value_max,
-        "value_mid": arm.neutral_value,
+        "arm_type": "wearm",
+        "value_min": 500,
+        "value_max": 2500,
+        "value_mid": 1500,
     }

@@ -11,8 +11,8 @@ from vision.qr_scanner import scan_qr
 from vision.page_counter import check_page_completeness
 from vision.classifier import classify_document
 from validator.rules import DocumentValidator
-from hardware.arm import create_controller
-from hardware.arm import compute_position_at_xy, load_calibration
+from hardware.wearm import WeArmController
+from hardware.base import compute_position_at_xy, load_calibration
 from hardware.kinematics import compute_stamp_pwm
 from database.audit import log_action
 from database import review_queue as rq
@@ -38,7 +38,7 @@ class DocumentProcessor:
     def __init__(self):
         from vision.camera import SharedCamera
         self.camera   = SharedCamera.get_instance()
-        self.arm      = create_controller()
+        self.arm      = WeArmController()
         self.validator = DocumentValidator()
         logger.info('DocumentProcessor 已初始化')
 
