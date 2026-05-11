@@ -6,7 +6,11 @@ from alembic import context
 from database.models import Base
 from database.connection import engine
 
+# 从 config.py 获取 DATABASE_URL，注入 alembic.ini 的占位符
+from config import DATABASE_URL
+
 config = context.config
+config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

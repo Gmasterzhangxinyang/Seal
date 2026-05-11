@@ -34,7 +34,7 @@ os.makedirs(IMG_DIR, exist_ok=True)
 os.makedirs(EXAMPLE_DIR, exist_ok=True)
 
 app = Flask(__name__, template_folder=TMPL_DIR)
-app.secret_key = 'demo_secret_2024'
+app.secret_key = os.environ.get('SECRET_KEY', 'demo_secret_2024')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
