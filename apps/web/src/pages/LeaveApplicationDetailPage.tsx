@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch, apiPost } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 import type { LeaveApplication } from '@/types/api'
 
 export function LeaveApplicationDetailPage() {
@@ -9,6 +10,8 @@ export function LeaveApplicationDetailPage() {
   const navigate = useNavigate()
   const [app, setApp] = useState<LeaveApplication | null>(null)
   const [loading, setLoading] = useState(true)
+  const user = useAuthStore((s) => s.user)
+  const canApprove = user?.role === 'admin' || user?.role === 'reviewer'
 
   useEffect(() => {
     if (!applicationId) return
@@ -135,7 +138,7 @@ export function LeaveApplicationDetailPage() {
           <div>创建时间：{app.created_at}</div>
         </div>
 
-        {app.status === 'SUBMITTED' && (
+        {app.status === 'SUBMITTED' && canApprove && (
           <div className="flex gap-3 pt-4 border-t">
             <button
               onClick={handleApprove}

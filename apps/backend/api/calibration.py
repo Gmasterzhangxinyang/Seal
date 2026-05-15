@@ -159,9 +159,10 @@ def cal_reset(session: dict = Depends(require_role("admin"))):
 
 @router.post("/home")
 def cal_home(session: dict = Depends(require_role("admin"))):
+    from hardware.wearm import PWM_MID
+
     arm = get_arm()
-    mid = arm.neutral_value
-    arm.move_to({i: mid for i in range(6)}, 1000)
+    arm.move_to({i: PWM_MID for i in range(6)}, 1000)
     return {"status": "ok"}
 
 

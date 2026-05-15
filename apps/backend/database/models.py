@@ -135,6 +135,7 @@ class LeaveApplication(Base):
     approved_by: Mapped[str | None] = mapped_column(String(50))
     approved_at: Mapped[str | None] = mapped_column(String(30))
     stamped_at: Mapped[str | None] = mapped_column(String(30))
+    created_by: Mapped[str | None] = mapped_column(String(50))
     created_at: Mapped[str] = mapped_column(String(30), nullable=False)
     updated_at: Mapped[str] = mapped_column(String(30), nullable=False)
 

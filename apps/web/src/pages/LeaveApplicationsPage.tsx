@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiFetch, apiPost } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 import type { LeaveApplication } from '@/types/api'
 
 export function LeaveApplicationsPage() {
@@ -9,6 +10,8 @@ export function LeaveApplicationsPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('')
   const navigate = useNavigate()
+  const user = useAuthStore((s) => s.user)
+  const canApprove = user?.role === 'admin' || user?.role === 'reviewer'
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -132,7 +135,7 @@ export function LeaveApplicationsPage() {
                       >
                         详情
                       </button>
-                      {app.status === 'SUBMITTED' && (
+                      {app.status === 'SUBMITTED' && canApprove && (
                         <>
                           <button
                             onClick={() => handleApprove(app.application_id)}

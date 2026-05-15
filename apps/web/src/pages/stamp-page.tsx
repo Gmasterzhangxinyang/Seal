@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { CameraFeed } from '@/components/camera/camera-feed'
+import { VoiceControl } from '@/components/voice-control'
 import { usePendingStamps } from '@/hooks/use-pending-stamps'
 import { apiFetch, apiPost } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
-import type { StampResult, CameraListResponse, LeaveVerificationResult } from '@/types/api'
+import type { StampResult, CameraListResponse } from '@/types/api'
 
 export function StampPage() {
   const { items: pendingItems, refresh: refreshPending } = usePendingStamps()
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<StampResult | null>(null)
+  const [logs, setLogs] = useState<string[]>([])
   const [cameras, setCameras] = useState<CameraListResponse | null>(null)
   const [camerasLoading, setCamerasLoading] = useState(true)
   const [switching, setSwitching] = useState(false)
@@ -53,19 +55,51 @@ export function StampPage() {
   const triggerLeaveStamp = async () => {
     setLoading(true)
     setResult(null)
+    setLogs([])
     try {
-      const data = await apiPost<LeaveVerificationResult>('/stamp/leave')
-      if (data.success) {
-        setResult({ status: 'approved', message: '验证通过，已盖章', fields: {} })
-      } else if (data.decision === 'REVIEW') {
-        setResult({
-          status: 'pending_review',
-          message: '验证不确定，已进入人工复审',
-          warnings: data.warnings,
-          fields: {},
-        })
-      } else {
-        setResult({ status: 'rejected', errors: data.errors, warnings: data.warnings, fields: {} })
+      const res = await fetch('/api/stamp/leave', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        let currentEvent = ''
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim()
+          } else if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (currentEvent === 'log') {
+              setLogs((prev) => [...prev, data])
+            } else if (currentEvent === 'result') {
+              const r = JSON.parse(data)
+              if (r.success) {
+                setResult({ status: 'approved', message: '验证通过，已盖章', fields: {} })
+              } else if (r.decision === 'REVIEW') {
+                setResult({
+                  status: 'pending_review',
+                  message: '验证不确定，已进入人工复审',
+                  warnings: r.warnings,
+                  fields: {},
+                })
+              } else {
+                setResult({ status: 'rejected', errors: r.errors, warnings: r.warnings, fields: {} })
+              }
+            }
+          }
+        }
       }
     } catch (err) {
       setResult({ status: 'error', message: err instanceof Error ? err.message : '未知错误' })
@@ -203,6 +237,31 @@ export function StampPage() {
           {stampMode === 'leave' ? '扫描请假条\n并核验盖章' : '扫描\n&\n盖章'}
         </button>
       </div>
+
+      {/* 语音控制 */}
+      <div className="mb-4">
+        <VoiceControl />
+      </div>
+
+      {/* 实时日志 */}
+      {logs.length > 0 && (
+        <div className="mb-4 max-w-[480px] mx-auto">
+          <div className="bg-gray-900 rounded-lg p-3 text-left font-mono text-xs max-h-[180px] overflow-y-auto">
+            {logs.map((log, i) => (
+              <div key={i} className={cn(
+                'py-0.5',
+                i === logs.length - 1 && loading ? 'text-green-400' : 'text-gray-400',
+              )}>
+                <span className="text-gray-600 mr-2">{String(i + 1).padStart(2, '0')}</span>
+                {log}
+              </div>
+            ))}
+            {loading && (
+              <span className="inline-block w-2 h-3 bg-green-400 animate-pulse ml-1" />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 结果展示 */}
       <div className="min-h-[70px] flex items-center justify-center">

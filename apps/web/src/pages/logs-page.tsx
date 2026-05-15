@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { apiFetch } from '@/lib/api-client'
+import { apiFetch, apiDelete } from '@/lib/api-client'
 import type { AuditLog } from '@/types/api'
 
 export function LogsPage() {
@@ -7,12 +7,27 @@ export function LogsPage() {
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<number | null>(null)
 
-  useEffect(() => {
+  const fetchLogs = () => {
     apiFetch<AuditLog[]>('/logs')
       .then(setLogs)
       .catch(() => {})
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    fetchLogs()
   }, [])
+
+  const handleDelete = async (logId: number) => {
+    if (!confirm('确定删除此审计记录？关联的请假申请将被重置为可重新盖章状态。')) return
+    try {
+      await apiDelete(`/logs/${logId}`)
+      setLogs((prev) => prev.filter((l) => l.id !== logId))
+      if (expandedId === logId) setExpandedId(null)
+    } catch {
+      alert('删除失败')
+    }
+  }
 
   if (loading) {
     return <div className="text-center py-8 text-muted-foreground">加载中...</div>
@@ -54,7 +69,7 @@ export function LogsPage() {
               </th>
               <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">结果</th>
               <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">错误</th>
-              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200"></th>
+              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200 w-20"></th>
             </tr>
           </thead>
           <tbody>
@@ -83,10 +98,21 @@ export function LogsPage() {
                     <td className="px-3 py-2 border-b border-gray-100 text-xs text-[#457b9d]">
                       {expanded ? '收起' : '详情'}
                     </td>
+                    <td className="px-3 py-2 border-b border-gray-100 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDelete(log.id)
+                        }}
+                        className="text-xs text-red-500 hover:text-red-700 hover:underline"
+                      >
+                        删除
+                      </button>
+                    </td>
                   </tr>
                   {expanded && (
                     <tr key={`${log.id}-detail`}>
-                      <td colSpan={6} className="px-4 py-4 bg-gray-50 border-b border-gray-200">
+                      <td colSpan={7} className="px-4 py-4 bg-gray-50 border-b border-gray-200">
                         <div className="grid grid-cols-2 gap-4">
                           {/* 图片预览 */}
                           <div>

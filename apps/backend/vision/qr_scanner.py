@@ -1,12 +1,13 @@
 import cv2
-from pyzbar.pyzbar import decode
+from pyzxing import BarCodeReader
 
-# 文件类型映射：二维码内容前缀 → 内部类型代码
 _QR_TYPE_MAP = {
     "LEAVE": "leave",
     "EXPENSE": "expense",
     "CERT": "cert",
 }
+
+_reader = BarCodeReader()
 
 
 def scan_qr(image_path: str) -> tuple[str | None, str]:
@@ -16,15 +17,20 @@ def scan_qr(image_path: str) -> tuple[str | None, str]:
         qr_raw   - 二维码原始文本（无二维码则为 None）
         doc_type - 识别出的文件类型（无法识别则为 'general'）
     """
-    img = cv2.imread(image_path)
-    codes = decode(img)
+    results = _reader.decode(image_path)
 
-    if not codes:
+    if not results:
         return None, "general"
 
-    qr_raw = codes[0].data.decode("utf-8").strip()
-    doc_type = "general"
+    first_result = results[0] if isinstance(results, list) else next(iter(results.values()))
+    raw = first_result.get("parsed") or first_result.get("raw")
+    if not raw:
+        return None, "general"
+    qr_raw = raw.decode("utf-8").strip() if isinstance(raw, bytes) else str(raw).strip()
+    if not qr_raw:
+        return None, "general"
 
+    doc_type = "general"
     for prefix, dtype in _QR_TYPE_MAP.items():
         if qr_raw.upper().startswith(prefix):
             doc_type = dtype

@@ -72,6 +72,7 @@ from api.calibration import router as calibration_router  # noqa: E402
 from api.images import router as images_router  # noqa: E402
 from api.users import router as users_router  # noqa: E402
 from api.leave_applications import router as leave_applications_router  # noqa: E402
+from api.voice import router as voice_router  # noqa: E402
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(cameras_router, prefix="/api")
@@ -84,6 +85,7 @@ app.include_router(calibration_router, prefix="/api")
 app.include_router(images_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
 app.include_router(leave_applications_router, prefix="/api")
+app.include_router(voice_router, prefix="/api")
 
 
 def _mount_spa():
@@ -106,6 +108,22 @@ def _mount_spa():
         return FResponse(os.path.join(dist, "index.html"))
 
 
+def _migrate():
+    """数据库迁移：为已有表添加新列。"""
+    from database.connection import engine
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "ALTER TABLE leave_applications ADD COLUMN created_by VARCHAR(50) NULL"
+            ))
+            conn.commit()
+            logger.info("[migrate] leave_applications 添加 created_by 列")
+        except Exception:
+            pass  # 列已存在则跳过
+
+
 def start():
     import atexit
     import signal
@@ -115,6 +133,7 @@ def start():
     signal.signal(signal.SIGINT, lambda *_: (logger.info("收到 SIGINT"), sys.exit(0)))
 
     init_db()
+    _migrate()
     seed_demo_data()
     seed_default_templates()
     _mount_spa()

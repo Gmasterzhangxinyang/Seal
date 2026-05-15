@@ -59,10 +59,10 @@ def create_leave_application(
             text("""
             INSERT INTO leave_applications
             (application_id, student_id, student_name, dept, leave_type,
-             start_date, end_date, reason, status, qr_content, created_at, updated_at)
+             start_date, end_date, reason, status, qr_content, created_by, created_at, updated_at)
             VALUES
             (:application_id, :student_id, :student_name, :dept, :leave_type,
-             :start_date, :end_date, :reason, 'SUBMITTED', :qr_content, :created_at, :updated_at)
+             :start_date, :end_date, :reason, 'SUBMITTED', :qr_content, :created_by, :created_at, :updated_at)
         """),
             {
                 "application_id": application_id,
@@ -74,6 +74,7 @@ def create_leave_application(
                 "end_date": body.end_date,
                 "reason": body.reason,
                 "qr_content": qr_content,
+                "created_by": session["username"],
                 "created_at": now,
                 "updated_at": now,
             },
@@ -91,29 +92,55 @@ def create_leave_application(
 def list_leave_applications(
     status: str | None = None, session: dict = Depends(get_session)
 ):
-    """获取请假申请列表，支持按状态筛选"""
+    """获取请假申请列表，支持按状态筛选；operator 只能查看自己创建的申请"""
     with get_db() as conn:
         from sqlalchemy import text
 
-        if status:
-            rows = (
-                conn.execute(
-                    text(
-                        "SELECT * FROM leave_applications WHERE status=:status ORDER BY created_at DESC"
-                    ),
-                    {"status": status},
+        role = session["role"]
+        if role in ("admin", "reviewer"):
+            if status:
+                rows = (
+                    conn.execute(
+                        text(
+                            "SELECT * FROM leave_applications WHERE status=:status ORDER BY created_at DESC"
+                        ),
+                        {"status": status},
+                    )
+                    .mappings()
+                    .all()
                 )
-                .mappings()
-                .all()
-            )
+            else:
+                rows = (
+                    conn.execute(
+                        text("SELECT * FROM leave_applications ORDER BY created_at DESC")
+                    )
+                    .mappings()
+                    .all()
+                )
         else:
-            rows = (
-                conn.execute(
-                    text("SELECT * FROM leave_applications ORDER BY created_at DESC")
+            username = session["username"]
+            if status:
+                rows = (
+                    conn.execute(
+                        text(
+                            "SELECT * FROM leave_applications WHERE status=:status AND created_by=:created_by ORDER BY created_at DESC"
+                        ),
+                        {"status": status, "created_by": username},
+                    )
+                    .mappings()
+                    .all()
                 )
-                .mappings()
-                .all()
-            )
+            else:
+                rows = (
+                    conn.execute(
+                        text(
+                            "SELECT * FROM leave_applications WHERE created_by=:created_by ORDER BY created_at DESC"
+                        ),
+                        {"created_by": username},
+                    )
+                    .mappings()
+                    .all()
+                )
     return list(rows)
 
 

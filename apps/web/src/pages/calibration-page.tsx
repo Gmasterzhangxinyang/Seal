@@ -28,7 +28,7 @@ export function CalibrationPage() {
   }
 
   const moveSingle = (servoId: number, pwm: number) => {
-    apiPost('/calibration/move_single', { servo_id: servoId, pwm, duration: 20 })
+    apiPost('/calibration/move_single', { servo_id: servoId, pwm, duration: 100 }).catch(() => {})
   }
 
   const handleSliderChange = (servoId: number, value: number) => {

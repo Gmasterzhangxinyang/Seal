@@ -167,3 +167,13 @@ PAPER_DETECTION_ENABLED = True
 
 # ─── OpenAI Vision ──────────────────────────────────────────────────────────────
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+VLM_API_KEY = os.environ.get("ZHIPU_API_KEY", "")  # 智谱 key 用于 VLM
+VLM_BASE_URL = os.environ.get("VLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
+VLM_MODEL = os.environ.get("VLM_MODEL", "glm-4.6v")
+CHAT_MODEL = os.environ.get("CHAT_MODEL", "glm-4-flash")
+
+# ─── Fish Audio TTS ────────────────────────────────────────────────────────────
+FISH_AUDIO_API_KEY = os.environ.get("FISH_AUDIO_API_KEY", "")
+
+# ─── DashScope ASR ────────────────────────────────────────────────────────────
+DASHSCOPE_API_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
