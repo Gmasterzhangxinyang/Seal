@@ -151,6 +151,26 @@ def inverse_kinematics(
     return result
 
 
+def forward_kinematics(joint_angles_deg: dict) -> list[tuple[float, float]]:
+    """正向运动学：给定关节角度（度），计算各关节点在 YZ 平面内的坐标。
+
+    返回: [(y0,z0), (y1,z1), (y2,z2), (y3,z3), (y4,z4)]
+          0=底座旋转轴, 1=肩, 2=肘, 3=腕, 4=末端(印章)
+          底座旋转 (θ0) 仅影响方向，不影响 YZ 平面内位置。
+    """
+    θ1 = math.radians(joint_angles_deg[1])
+    θ2 = math.radians(joint_angles_deg[2])
+    θ3 = math.radians(joint_angles_deg[3])
+
+    p0 = (0.0, 0.0)
+    p1 = (0.0, H0)
+    p2 = (p1[0] + L1 * math.cos(θ1), p1[1] + L1 * math.sin(θ1))
+    p3 = (p2[0] + L2 * math.cos(θ1 + θ2), p2[1] + L2 * math.sin(θ1 + θ2))
+    p4 = (p3[0] + L3 * math.cos(θ1 + θ2 + θ3), p3[1] + L3 * math.sin(θ1 + θ2 + θ3))
+
+    return [p0, p1, p2, p3, p4]
+
+
 def pixel_to_world(cx: float, cy: float, img_w: int, img_h: int, cal: dict) -> tuple:
     """将图像像素坐标转换为机械臂世界坐标。
 
