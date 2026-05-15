@@ -32,32 +32,12 @@ import numpy as np
 from hardware.kinematics import (
     H0, L1, L2, L3,
     inverse_kinematics,
+    forward_kinematics,
     pwm_to_deg,
     deg_to_pwm,
 )
 
-# ─── 正向运动学（用于绘图） ────────────────────────────────────────────────
-
-
-def forward_kinematics(joint_angles_deg: dict) -> list[tuple[float, float]]:
-    """
-    给定关节角度 (度)，计算各关节点在 YZ 平面内的坐标。
-
-    返回: [(y0,z0), (y1,z1), (y2,z2), (y3,z3), (y_end,z_end)]
-          0=底座旋转轴, 1=肩, 2=肘, 3=腕, end=末端(印章)
-    """
-    θ1 = math.radians(joint_angles_deg[1])  # 大臂相对水平面的角度
-    θ2 = math.radians(joint_angles_deg[2])  # 小臂弯曲角
-    θ3 = math.radians(joint_angles_deg[3])  # 手腕角
-
-    # 坐标系: Y 水平, Z 垂直向上
-    p0 = (0.0, 0.0)  # 底座旋转轴
-    p1 = (0.0, H0)  # 肩关节
-    p2 = (p1[0] + L1 * math.cos(θ1), p1[1] + L1 * math.sin(θ1))  # 肘
-    p3 = (p2[0] + L2 * math.cos(θ1 + θ2), p2[1] + L2 * math.sin(θ1 + θ2))  # 腕
-    pend = (p3[0] + L3 * math.cos(θ1 + θ2 + θ3), p3[1] + L3 * math.sin(θ1 + θ2 + θ3))
-
-    return [p0, p1, p2, p3, pend]
+# ─── 绘图辅助 ──────────────────────────────────────────────────────────
 
 
 def draw_arm(ax, joints, stamp_angle_deg=None, color="steelblue", alpha=1.0, label=""):
