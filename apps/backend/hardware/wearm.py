@@ -86,17 +86,15 @@ class WeArmController:
     def stamp_at(self, position_values: dict):
         """在指定位置执行盖章：移动到目标位置 → 下压 → 夹爪收放 → 回中位"""
         neutral = {i: PWM_MID for i in range(6)}
-        neutral[5] = 2200
         target = {i: int(position_values.get(i, PWM_MID)) for i in range(6)}
-        target[5] = 2200
 
         self.move_to(target, 800)
-        time.sleep(1.0)
+        time.sleep(0.3)
 
         press = dict(target)
-        press[3] = 1630
-        self.move_to(press, 600)
-        time.sleep(0.7)
+        press[2] = 2150
+        self.move_to(press, 1600)
+        time.sleep(1)
 
         # # 夹爪辅助压实：收 → 放 → 再压 → 回
         # self.move_single(4, 1380, 300)
@@ -111,13 +109,14 @@ class WeArmController:
         # # 手腕加深下压
         # self.move_single(3, 1710, 400)
         # time.sleep(0.5)
-
-        self.move_to(neutral, 800)
-        time.sleep(1.0)
+        press[2] = 1607
+        self.move_to(press, 1200)
+        self.move_to(neutral, 1200)
+        time.sleep(0.3)
 
     def stamp_sequence(self):
         """执行默认盖章动作序列（固定位置）"""
-        pos = {0: 1500, 1: 920, 2: 1655, 3: 1500, 4: 1500, 5: 1500}
+        pos = {0: 850, 1: 1140, 2: 1607, 3: 1680, 4: 1500, 5: 1580}
         self.stamp_at(pos)
 
     def ping(self) -> bool:
