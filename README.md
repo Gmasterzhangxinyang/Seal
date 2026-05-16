@@ -27,6 +27,7 @@
 16. [故障排查](#16-故障排查)
 17. [团队分工与时间线](#17-团队分工与时间线)
 18. [采购清单](#18-采购清单)
+19. [AI 开发助手（API 接入）](#19-ai-开发助手api-接入)
 
 ---
 
@@ -627,3 +628,63 @@ Week 6  演示准备，录制视频，撰写报告
 ---
 
 *Turborepo Monorepo · Python FastAPI · React 19 · GLM-4V · WeArm · WireGuard*
+
+---
+
+## 19. AI 开发助手（API 接入）
+
+云服务器上运行了一个 AI 编码助手，可通过 OpenAI 兼容 API 连接，帮助团队成员理解和修改服务端代码。
+
+### 连接信息
+
+```
+Base URL:  http://110.42.229.174:8001/v1
+API Key:   814988d70d320f23cf1dff306e9a8249abcfffaa39459a1f65486d1806522938
+Model:     deepseek-v4-pro
+```
+
+### 方式一：OpenAI 兼容客户端（推荐）
+
+支持 OpenWebUI、ChatBox、Continue (VS Code) 等任何兼容 OpenAI API 的工具。填入上面的 Base URL 和 API Key 即可。
+
+### 方式二：curl
+
+```bash
+curl -X POST http://110.42.229.174:8001/v1/chat/completions \
+  -H "Authorization: Bearer 814988d70d320f23cf1dff306e9a8249abcfffaa39459a1f65486d1806522938" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "deepseek-v4-pro",
+    "messages": [{"role": "user", "content": "帮我看看 backend/main.py 的路由结构"}]
+  }'
+```
+
+### 方式三：Python
+
+```python
+import requests
+
+resp = requests.post(
+    "http://110.42.229.174:8001/v1/chat/completions",
+    headers={"Authorization": "Bearer 814988d70d320f23cf1dff306e9a8249abcfffaa39459a1f65486d1806522938"},
+    json={
+        "model": "deepseek-v4-pro",
+        "messages": [{"role": "user", "content": "解释 kinematics.py 里的逆运动学实现"}]
+    }
+)
+print(resp.json()["choices"][0]["message"]["content"])
+```
+
+### 能力范围
+
+- 阅读和解释 MEC202 源代码
+- 搜索文件、函数和代码模式
+- 帮助调试构建错误和配置问题
+- 解释项目架构、API 端点和部署设置
+- 修改 `/home/ubuntu/MEC202/` 下的服务端文件
+
+### 限制
+
+- 仅回答 MEC202 项目相关问题
+- 文件操作限定在 `/home/ubuntu/MEC202/` 内
+- 非项目问题会被拒绝回复
