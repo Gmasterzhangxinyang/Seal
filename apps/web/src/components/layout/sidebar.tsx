@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { useUIStore } from '@/stores/ui-store'
 import { cn } from '@/lib/utils'
+import { useConnectionStore } from '@/stores/connection-store'
 import {
   Stamp,
   FileText,
@@ -48,6 +49,7 @@ export function Sidebar() {
   const { t } = useTranslation('nav')
   const { user, logout } = useAuthStore()
   const { sidebarCollapsed, toggleSidebar, locale, setLocale } = useUIStore()
+  const connectionStatus = useConnectionStore((s) => s.status)
 
   function isActive(path: string) {
     if (path === '/') return location.pathname === '/'
@@ -64,9 +66,29 @@ export function Sidebar() {
       {/* Header */}
       <div className="flex h-14 items-center gap-3 px-4 border-b border-sidebar-border shrink-0">
         {!sidebarCollapsed && (
-          <div className="animate-fade-in min-w-0">
+          <div className="animate-fade-in flex min-w-0 items-center gap-2">
             <span className="text-base font-bold tracking-tight text-foreground">{t('appName')}</span>
+            {connectionStatus !== 'connected' && (
+              <span
+                className={cn(
+                  'inline-block h-2 w-2 rounded-full shrink-0',
+                  connectionStatus === 'connecting'
+                    ? 'bg-yellow-500 animate-pulse'
+                    : 'bg-red-500',
+                )}
+              />
+            )}
           </div>
+        )}
+        {sidebarCollapsed && connectionStatus !== 'connected' && (
+          <span
+            className={cn(
+              'mx-auto inline-block h-2 w-2 rounded-full shrink-0',
+              connectionStatus === 'connecting'
+                ? 'bg-yellow-500 animate-pulse'
+                : 'bg-red-500',
+            )}
+          />
         )}
         <button
           onClick={toggleSidebar}
