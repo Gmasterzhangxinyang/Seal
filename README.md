@@ -61,7 +61,7 @@
         │
         ▼
 ┌─────────────────────────────────────────┐
-│  云服务器 (110.42.229.174)               │
+│  云服务器 (XXXXXXX)               │
 │  Ubuntu 24.04                            │
 │                                          │
 │  Nginx :80                               │
@@ -234,7 +234,7 @@ start_dev.bat
 - 前端：http://127.0.0.1:5173
 - 后端 API：http://127.0.0.1:5001
 - Swagger 文档：http://127.0.0.1:5001/docs
-- 生产环境：http://110.42.229.174
+- 生产环境：http://XXXXXXX
 
 ### 演示账号
 
@@ -270,7 +270,7 @@ Address = 10.66.66.2/24
 
 [Peer]
 PublicKey = <云服务器公钥>
-Endpoint = 110.42.229.174:51820
+Endpoint = XXXXXXX:51820
 AllowedIPs = 10.66.66.0/24
 PersistentKeepalive = 25
 ```
