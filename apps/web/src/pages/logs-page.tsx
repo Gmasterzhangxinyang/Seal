@@ -1,11 +1,36 @@
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { apiFetch, apiDelete } from '@/lib/api-client'
 import type { AuditLog } from '@/types/api'
+import { PageHeader } from '@/components/layout/page-header'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/spinner'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Card, CardContent } from '@/components/ui/card'
+import { Dialog, DialogTitle, DialogActions } from '@/components/ui/dialog'
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/ui/table'
+
+const resultBadgeVariant: Record<string, 'success' | 'destructive' | 'warning'> = {
+  APPROVED: 'success',
+  REJECTED: 'destructive',
+  PENDING_REVIEW: 'warning',
+}
 
 export function LogsPage() {
+  const { t } = useTranslation('logs')
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const fetchLogs = () => {
     apiFetch<AuditLog[]>('/logs')
@@ -18,30 +43,23 @@ export function LogsPage() {
     fetchLogs()
   }, [])
 
-  const handleDelete = async (logId: number) => {
-    if (!confirm('确定删除此审计记录？关联的请假申请将被重置为可重新盖章状态。')) return
+  const handleDelete = async () => {
+    if (deleteTarget === null) return
     try {
-      await apiDelete(`/logs/${logId}`)
-      setLogs((prev) => prev.filter((l) => l.id !== logId))
-      if (expandedId === logId) setExpandedId(null)
+      await apiDelete(`/logs/${deleteTarget}`)
+      setLogs((prev) => prev.filter((l) => l.id !== deleteTarget))
+      if (expandedId === deleteTarget) setExpandedId(null)
     } catch {
-      alert('删除失败')
+      setDeleteError(t('deleteFailed'))
+    } finally {
+      setDeleteTarget(null)
     }
   }
 
-  if (loading) {
-    return <div className="text-center py-8 text-muted-foreground">加载中...</div>
-  }
-
   const resultLabel: Record<string, string> = {
-    APPROVED: '通过',
-    REJECTED: '拒绝',
-    PENDING_REVIEW: '待复审',
-  }
-  const resultStyle: Record<string, string> = {
-    APPROVED: 'bg-green-100 text-green-800',
-    REJECTED: 'bg-red-100 text-red-800',
-    PENDING_REVIEW: 'bg-yellow-100 text-yellow-800',
+    APPROVED: t('approved'),
+    REJECTED: t('rejected'),
+    PENDING_REVIEW: t('pendingReview'),
   }
 
   const parseJson = (raw: string | null): Record<string, string> | null => {
@@ -55,133 +73,176 @@ export function LogsPage() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Spinner className="h-6 w-6" />
+      </div>
+    )
+  }
+
   return (
-    <div className="card bg-white rounded-xl shadow p-6">
-      <h2 className="text-lg font-bold text-[#1d3557] mb-4">审计日志</h2>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr>
-              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">时间</th>
-              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">操作员</th>
-              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">
-                文件类型
-              </th>
-              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">结果</th>
-              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">错误</th>
-              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200 w-20"></th>
-            </tr>
-          </thead>
-          <tbody>
+    <div>
+      <PageHeader title={t('auditLogs')} />
+
+      {logs.length === 0 ? (
+        <EmptyState title={t('common:noData')} />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('time')}</TableHead>
+              <TableHead>{t('operator')}</TableHead>
+              <TableHead>{t('docType')}</TableHead>
+              <TableHead>{t('result')}</TableHead>
+              <TableHead>{t('error')}</TableHead>
+              <TableHead className="w-20" />
+              <TableHead className="w-20" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {logs.map((log) => {
               const expanded = expandedId === log.id
               const fields = parseJson(log.fields)
               return (
                 <React.Fragment key={log.id}>
-                  <tr
-                    className="hover:bg-gray-50 cursor-pointer"
+                  <TableRow
+                    className="cursor-pointer"
                     onClick={() => setExpandedId(expanded ? null : log.id)}
                   >
-                    <td className="px-3 py-2 border-b border-gray-100">{log.timestamp}</td>
-                    <td className="px-3 py-2 border-b border-gray-100">{log.operator_id}</td>
-                    <td className="px-3 py-2 border-b border-gray-100">{log.doc_type_name}</td>
-                    <td className="px-3 py-2 border-b border-gray-100">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${resultStyle[log.result] || 'bg-gray-100'}`}
-                      >
+                    <TableCell>{log.timestamp}</TableCell>
+                    <TableCell>{log.operator_id}</TableCell>
+                    <TableCell>{log.doc_type_name}</TableCell>
+                    <TableCell>
+                      <Badge variant={resultBadgeVariant[log.result] || 'default'}>
                         {resultLabel[log.result] || log.result}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 border-b border-gray-100 text-xs text-gray-500 max-w-[200px] truncate">
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
                       {log.errors || '-'}
-                    </td>
-                    <td className="px-3 py-2 border-b border-gray-100 text-xs text-[#457b9d]">
-                      {expanded ? '收起' : '详情'}
-                    </td>
-                    <td className="px-3 py-2 border-b border-gray-100 text-center">
-                      <button
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm">
+                        {expanded ? t('collapse') : t('expand')}
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
                         onClick={(e) => {
                           e.stopPropagation()
-                          handleDelete(log.id)
+                          setDeleteError(null)
+                          setDeleteTarget(log.id)
                         }}
-                        className="text-xs text-red-500 hover:text-red-700 hover:underline"
                       >
-                        删除
-                      </button>
-                    </td>
-                  </tr>
+                        {t('delete')}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                   {expanded && (
-                    <tr key={`${log.id}-detail`}>
-                      <td colSpan={7} className="px-4 py-4 bg-gray-50 border-b border-gray-200">
-                        <div className="grid grid-cols-2 gap-4">
-                          {/* 图片预览 */}
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 mb-2">文件图像</p>
-                            <div className="flex gap-3">
-                              {log.before_image && (
-                                <div className="flex-1">
-                                  <p className="text-xs text-gray-400 mb-1">盖章前</p>
-                                  <img
-                                    src={`/api/images/${log.before_image}`}
-                                    alt="盖章前"
-                                    className="w-full max-h-48 object-contain rounded border bg-white"
-                                  />
-                                </div>
-                              )}
-                              {log.after_image && (
-                                <div className="flex-1">
-                                  <p className="text-xs text-gray-400 mb-1">盖章后</p>
-                                  <img
-                                    src={`/api/images/${log.after_image}`}
-                                    alt="盖章后"
-                                    className="w-full max-h-48 object-contain rounded border bg-white"
-                                  />
-                                </div>
-                              )}
-                              {!log.before_image && !log.after_image && (
-                                <p className="text-xs text-gray-400">无图片</p>
-                              )}
-                            </div>
-                          </div>
-                          {/* OCR 结果 + 提取字段 */}
-                          <div className="space-y-3">
-                            {log.ocr_text && (
+                    <TableRow key={`${log.id}-detail`}>
+                      <TableCell colSpan={7} className="bg-muted/30 p-4">
+                        <Card>
+                          <CardContent>
+                            <div className="grid grid-cols-2 gap-4">
+                              {/* Image preview */}
                               <div>
-                                <p className="text-xs font-semibold text-gray-500 mb-1">
-                                  OCR 识别结果
+                                <p className="text-xs font-semibold text-muted-foreground mb-2">
+                                  {t('docImage')}
                                 </p>
-                                <pre className="text-xs bg-white rounded border p-2 max-h-32 overflow-auto whitespace-pre-wrap">
-                                  {log.ocr_text}
-                                </pre>
-                              </div>
-                            )}
-                            {fields && Object.keys(fields).length > 0 && (
-                              <div>
-                                <p className="text-xs font-semibold text-gray-500 mb-1">提取字段</p>
-                                <div className="bg-white rounded border p-2 space-y-1">
-                                  {Object.entries(fields).map(([k, v]) => (
-                                    <div key={k} className="flex text-xs">
-                                      <span className="text-gray-500 w-20 shrink-0">{k}</span>
-                                      <span className="text-gray-800">{String(v)}</span>
+                                <div className="flex gap-3">
+                                  {log.before_image && (
+                                    <div className="flex-1">
+                                      <p className="text-xs text-muted-foreground mb-1">
+                                        {t('beforeStamp')}
+                                      </p>
+                                      <img
+                                        src={`/api/images/${log.before_image}`}
+                                        alt={t('beforeStamp')}
+                                        className="w-full max-h-48 object-contain rounded border border-border bg-card"
+                                      />
                                     </div>
-                                  ))}
+                                  )}
+                                  {log.after_image && (
+                                    <div className="flex-1">
+                                      <p className="text-xs text-muted-foreground mb-1">
+                                        {t('afterStamp')}
+                                      </p>
+                                      <img
+                                        src={`/api/images/${log.after_image}`}
+                                        alt={t('afterStamp')}
+                                        className="w-full max-h-48 object-contain rounded border border-border bg-card"
+                                      />
+                                    </div>
+                                  )}
+                                  {!log.before_image && !log.after_image && (
+                                    <p className="text-xs text-muted-foreground">{t('noImage')}</p>
+                                  )}
                                 </div>
                               </div>
-                            )}
-                            {!log.ocr_text && !fields && (
-                              <p className="text-xs text-gray-400">无 OCR 数据</p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
+                              {/* OCR + fields */}
+                              <div className="space-y-3">
+                                {log.ocr_text && (
+                                  <div>
+                                    <p className="text-xs font-semibold text-muted-foreground mb-1">
+                                      {t('ocrResult')}
+                                    </p>
+                                    <pre className="text-xs bg-card rounded border border-border p-2 max-h-32 overflow-auto whitespace-pre-wrap">
+                                      {log.ocr_text}
+                                    </pre>
+                                  </div>
+                                )}
+                                {fields && Object.keys(fields).length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-semibold text-muted-foreground mb-1">
+                                      {t('extractedFields')}
+                                    </p>
+                                    <div className="bg-card rounded border border-border p-2 space-y-1">
+                                      {Object.entries(fields).map(([k, v]) => (
+                                        <div key={k} className="flex text-xs">
+                                          <span className="text-muted-foreground w-20 shrink-0">
+                                            {k}
+                                          </span>
+                                          <span className="text-foreground">{String(v)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {!log.ocr_text && !fields && (
+                                  <p className="text-xs text-muted-foreground">{t('noOcrData')}</p>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </TableCell>
+                    </TableRow>
                   )}
                 </React.Fragment>
               )
             })}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      )}
+
+      <Dialog open={deleteTarget !== null} onClose={() => setDeleteTarget(null)}>
+        <DialogTitle>{t('delete')}</DialogTitle>
+        <p className="mt-2 text-sm text-muted-foreground">{t('confirmDelete')}</p>
+        {deleteError && (
+          <p className="mt-2 text-sm text-destructive">{deleteError}</p>
+        )}
+        <DialogActions>
+          <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
+            {t('common:cancel')}
+          </Button>
+          <Button variant="destructive" onClick={handleDelete}>
+            {t('common:confirm')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   )
 }

@@ -1,0 +1,21 @@
+{
+  "armCalibration": "机械臂标定",
+  "testConnection": "测试连接",
+  "goHome": "回中位",
+  "servoControl": "舵机控制",
+  "quickPositioning": "快速定位",
+  "testStamp": "测试盖章",
+  "cornerCalibration": "四角标定",
+  "calibrated": "已标定",
+  "notCalibrated": "未标定",
+  "saveCurrentPosition": "保存当前位置",
+  "testMove": "测试移动",
+  "resetCalibration": "重置标定",
+  "confirmReset": "确定重置所有标定数据？",
+  "confirmStampAction": "确定执行盖章动作？",
+  "connectionNormal": "连接正常",
+  "connectionFailed": "连接失败",
+  "stampSequence": "完整盖章流程",
+  "testStampSequence": "测试盖章流程",
+  "confirmStampSequence": "确定执行完整盖章流程？"
+}

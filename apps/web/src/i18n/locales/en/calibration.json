@@ -1,0 +1,21 @@
+{
+  "armCalibration": "Arm Calibration",
+  "testConnection": "Test Connection",
+  "goHome": "Go Home",
+  "servoControl": "Servo Control",
+  "quickPositioning": "Quick Positioning",
+  "testStamp": "Test Stamp",
+  "cornerCalibration": "Corner Calibration",
+  "calibrated": "Calibrated",
+  "notCalibrated": "Not Calibrated",
+  "saveCurrentPosition": "Save Current Position",
+  "testMove": "Test Move",
+  "resetCalibration": "Reset Calibration",
+  "confirmReset": "Are you sure you want to reset all calibration data?",
+  "confirmStampAction": "Are you sure you want to execute stamp action?",
+  "connectionNormal": "Connection normal",
+  "connectionFailed": "Connection failed",
+  "stampSequence": "Full Stamp Sequence",
+  "testStampSequence": "Test Stamp Sequence",
+  "confirmStampSequence": "Are you sure you want to execute the full stamp sequence?"
+}

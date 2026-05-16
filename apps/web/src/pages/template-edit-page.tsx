@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { apiFetch, apiPost, apiPut } from '@/lib/api-client'
 import type { Template, TemplateField } from '@/types/api'
+import { PageHeader } from '@/components/layout/page-header'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { Card, CardContent } from '@/components/ui/card'
+import { Spinner } from '@/components/ui/spinner'
 
 export function TemplateEditPage() {
+  const { t } = useTranslation('admin')
   const { id } = useParams()
   const navigate = useNavigate()
   const isNew = !id
@@ -25,6 +34,7 @@ export function TemplateEditPage() {
     },
   ])
   const [loading, setLoading] = useState(!isNew)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (isNew) return
@@ -76,6 +86,7 @@ export function TemplateEditPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
     const body = {
       name,
       code,
@@ -98,162 +109,180 @@ export function TemplateEditPage() {
       }
       navigate('/admin/templates')
     } catch (err) {
-      alert(err instanceof Error ? err.message : '保存失败')
+      setError(err instanceof Error ? err.message : t('saveFailed'))
     }
   }
 
-  if (loading) return <div className="text-center py-8 text-muted-foreground">加载中...</div>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Spinner className="h-6 w-6" />
+      </div>
+    )
+  }
 
   return (
-    <div className="card bg-white rounded-xl shadow p-6">
-      <h2 className="text-lg font-bold text-[#1d3557] mb-4">{isNew ? '新建模板' : '编辑模板'}</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">模板名称 *</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg text-sm"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">模板编码 *</label>
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg text-sm"
-              disabled={!isNew}
-              required
-            />
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">描述</label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg text-sm"
-            rows={2}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">分类关键词（逗号分隔）</label>
-            <input
-              value={keywords}
-              onChange={(e) => setKeywords(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">分类正则</label>
-            <input
-              value={regex}
-              onChange={(e) => setRegex(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg text-sm"
-            />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">盖章位置（如 0.82,0.85）</label>
-            <input
-              value={stampPosition}
-              onChange={(e) => setStampPosition(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">盖章关键词（逗号分隔）</label>
-            <input
-              value={stampKeywords}
-              onChange={(e) => setStampKeywords(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg text-sm"
-            />
-          </div>
-        </div>
+    <div>
+      <PageHeader title={isNew ? t('newTemplate') : t('editTemplate')} />
 
-        {/* 字段编辑 */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-bold">字段定义</label>
-            <button
-              type="button"
-              onClick={addField}
-              className="text-sm text-[#457b9d] hover:underline"
-            >
-              + 添加字段
-            </button>
-          </div>
-          <div className="space-y-2">
-            {fields.map((f, idx) => (
-              <div
-                key={idx}
-                className="grid grid-cols-[1fr_1fr_100px_2fr_2fr_40px] gap-2 items-center"
-              >
-                <input
-                  value={f.field_name}
-                  onChange={(e) => updateField(idx, 'field_name', e.target.value)}
-                  placeholder="字段名"
-                  className="px-2 py-1.5 border rounded text-sm"
+      <Card>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  {t('templateNameLabel')} *
+                </label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
                 />
-                <input
-                  value={f.field_label}
-                  onChange={(e) => updateField(idx, 'field_label', e.target.value)}
-                  placeholder="显示标签"
-                  className="px-2 py-1.5 border rounded text-sm"
-                />
-                <select
-                  value={f.field_category}
-                  onChange={(e) => updateField(idx, 'field_category', e.target.value)}
-                  className="px-2 py-1.5 border rounded text-sm"
-                >
-                  <option value="required">必填</option>
-                  <option value="optional">选填</option>
-                  <option value="forbidden">禁填</option>
-                </select>
-                <input
-                  value={f.ocr_pattern}
-                  onChange={(e) => updateField(idx, 'ocr_pattern', e.target.value)}
-                  placeholder="OCR 正则"
-                  className="px-2 py-1.5 border rounded text-sm font-mono text-xs"
-                />
-                <input
-                  value={f.validation_rule}
-                  onChange={(e) => updateField(idx, 'validation_rule', e.target.value)}
-                  placeholder="验证规则 JSON"
-                  className="px-2 py-1.5 border rounded text-sm font-mono text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeField(idx)}
-                  className="text-red-400 hover:text-red-600 text-lg"
-                >
-                  &times;
-                </button>
               </div>
-            ))}
-          </div>
-        </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  {t('templateCodeLabel')} *
+                </label>
+                <Input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  disabled={!isNew}
+                  required
+                />
+              </div>
+            </div>
 
-        <div className="flex gap-3 pt-2">
-          <button
-            type="submit"
-            className="px-6 py-2 bg-[#457b9d] text-white rounded-lg font-semibold hover:opacity-90"
-          >
-            保存
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/admin/templates')}
-            className="px-6 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
-          >
-            取消
-          </button>
-        </div>
-      </form>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">
+                {t('description')}
+              </label>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                className="min-h-[60px]"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  {t('classificationKeywords')}
+                </label>
+                <Input
+                  value={keywords}
+                  onChange={(e) => setKeywords(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  {t('classificationRegex')}
+                </label>
+                <Input
+                  value={regex}
+                  onChange={(e) => setRegex(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  {t('stampPosition')}
+                </label>
+                <Input
+                  value={stampPosition}
+                  onChange={(e) => setStampPosition(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  {t('stampKeywords')}
+                </label>
+                <Input
+                  value={stampKeywords}
+                  onChange={(e) => setStampKeywords(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Field definitions */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-semibold text-foreground">
+                  {t('fieldDefinition')}
+                </label>
+                <Button type="button" variant="ghost" size="sm" onClick={addField}>
+                  {t('addField')}
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {fields.map((f, idx) => (
+                  <div
+                    key={idx}
+                    className="grid grid-cols-[1fr_1fr_100px_2fr_2fr_40px] gap-2 items-center"
+                  >
+                    <Input
+                      value={f.field_name}
+                      onChange={(e) => updateField(idx, 'field_name', e.target.value)}
+                      placeholder={t('fieldName')}
+                    />
+                    <Input
+                      value={f.field_label}
+                      onChange={(e) => updateField(idx, 'field_label', e.target.value)}
+                      placeholder={t('displayLabel')}
+                    />
+                    <Select
+                      value={f.field_category}
+                      onChange={(e) => updateField(idx, 'field_category', e.target.value)}
+                    >
+                      <option value="required">{t('required')}</option>
+                      <option value="optional">{t('optionalCat')}</option>
+                      <option value="forbidden">{t('forbidden')}</option>
+                    </Select>
+                    <Input
+                      value={f.ocr_pattern}
+                      onChange={(e) => updateField(idx, 'ocr_pattern', e.target.value)}
+                      placeholder={t('ocrRegex')}
+                      className="font-mono text-xs"
+                    />
+                    <Input
+                      value={f.validation_rule}
+                      onChange={(e) => updateField(idx, 'validation_rule', e.target.value)}
+                      placeholder={t('validationRule')}
+                      className="font-mono text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeField(idx)}
+                      className="text-muted-foreground hover:text-destructive text-lg transition-colors cursor-pointer"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {error && (
+              <p className="text-sm text-destructive">{error}</p>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <Button type="submit">
+                {t('common:save')}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => navigate('/admin/templates')}
+              >
+                {t('common:cancel')}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   )
 }
