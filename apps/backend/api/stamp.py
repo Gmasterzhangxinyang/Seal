@@ -145,7 +145,7 @@ def stamp_leave(session: dict = Depends(get_session)):
             application_id = qr_data.get("application_id", "")
             yield _sse("log", f"申请编号: {application_id}")
 
-            # 4. OCR 识别（GLM-4V）
+            # 4. OCR 识别（GLM-4V），识别不清时自动重新拍照+识别
             yield _sse("log", "正在调用 GLM-4V 识别请假条内容（可能需要几秒）...")
             extracted_fields = _gpt4v_extract(before_img)
 
