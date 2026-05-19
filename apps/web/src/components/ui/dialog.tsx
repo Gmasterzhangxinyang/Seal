@@ -75,7 +75,7 @@ export function DialogActions({ className, children, ...props }: DialogActionsPr
 export function useConfirm() {
   const resolveRef = useRef<((value: boolean) => void) | null>(null)
 
-  function confirm(message: string): Promise<boolean> {
+  function confirm(_message: string): Promise<boolean> {
     return new Promise((resolve) => {
       resolveRef.current = resolve
     })
