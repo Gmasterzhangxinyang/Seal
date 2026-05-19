@@ -1,0 +1,23 @@
+{
+  "auditLogs": "Audit Logs",
+  "time": "Time",
+  "operator": "Operator",
+  "docType": "Document Type",
+  "result": "Result",
+  "error": "Error",
+  "collapse": "Collapse",
+  "expand": "Expand",
+  "delete": "Delete",
+  "approved": "Approved",
+  "rejected": "Rejected",
+  "pendingReview": "Pending Review",
+  "docImage": "Document Image",
+  "beforeStamp": "Before Stamp",
+  "afterStamp": "After Stamp",
+  "noImage": "No Image",
+  "ocrResult": "OCR Result",
+  "extractedFields": "Extracted Fields",
+  "noOcrData": "No OCR Data",
+  "confirmDelete": "Are you sure you want to delete this audit record? The associated leave application will be reset to re-stampable status.",
+  "deleteFailed": "Delete failed"
+}

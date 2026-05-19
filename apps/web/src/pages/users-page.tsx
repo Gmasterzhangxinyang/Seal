@@ -1,12 +1,36 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { apiFetch, apiDelete } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 import type { UserItem } from '@/types/api'
+import { PageHeader } from '@/components/layout/page-header'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/spinner'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Dialog, DialogTitle, DialogActions } from '@/components/ui/dialog'
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/ui/table'
+
+const roleBadgeVariant: Record<string, 'default' | 'info'> = {
+  admin: 'info',
+  reviewer: 'default',
+  operator: 'default',
+}
 
 export function UsersPage() {
+  const { t } = useTranslation('admin')
   const currentUser = useAuthStore((s) => s.user)
   const [users, setUsers] = useState<UserItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -24,85 +48,110 @@ export function UsersPage() {
     load()
   }, [load])
 
-  const handleDelete = async (username: string) => {
-    if (!confirm(`确定删除用户 "${username}" 吗？`)) return
+  const handleDelete = async () => {
+    if (!deleteTarget) return
     try {
-      await apiDelete(`/users/${username}`)
-      setUsers((prev) => prev.filter((u) => u.username !== username))
+      await apiDelete(`/users/${deleteTarget}`)
+      setUsers((prev) => prev.filter((u) => u.username !== deleteTarget))
     } catch (err) {
-      alert(err instanceof Error ? err.message : '删除失败')
+      setDeleteError(err instanceof Error ? err.message : t('deleteFailed'))
+    } finally {
+      setDeleteTarget(null)
     }
+  }
+
+  const roleLabel: Record<string, string> = {
+    admin: t('roleAdmin'),
+    reviewer: t('roleReviewer'),
+    operator: t('roleOperator'),
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-9 h-9 border-4 border-gray-200 border-t-primary rounded-full animate-spin" />
+        <Spinner className="h-6 w-6" />
       </div>
     )
   }
 
-  const roleLabel: Record<string, string> = {
-    admin: '管理员',
-    reviewer: '复审员',
-    operator: '操作员',
-  }
-
   return (
     <div>
-      <h2 className="text-lg font-bold mb-4">用户管理</h2>
-      <div className="bg-card rounded-lg border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-muted/50">
-              <th className="text-left px-4 py-3 font-medium">用户名</th>
-              <th className="text-left px-4 py-3 font-medium">邮箱</th>
-              <th className="text-left px-4 py-3 font-medium">角色</th>
-              <th className="text-left px-4 py-3 font-medium">注册时间</th>
-              <th className="text-right px-4 py-3 font-medium">操作</th>
-            </tr>
-          </thead>
-          <tbody>
+      <PageHeader title={t('userManagement')} />
+
+      {users.length === 0 ? (
+        <EmptyState title={t('noUsers')} />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('username')}</TableHead>
+              <TableHead>{t('email')}</TableHead>
+              <TableHead>{t('role')}</TableHead>
+              <TableHead>{t('registrationTime')}</TableHead>
+              <TableHead className="text-right">{t('common:actions')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {users.map((u) => {
               const isSelf = u.username === currentUser?.username
               return (
-                <tr key={u.username} className="border-b last:border-0 hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium">
+                <TableRow key={u.username}>
+                  <TableCell className="font-medium">
                     {u.username}
-                    {isSelf && <span className="ml-2 text-xs text-muted-foreground">(当前)</span>}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{u.email || '-'}</td>
-                  <td className="px-4 py-3">
-                    <span className="inline-block px-2 py-0.5 rounded text-xs bg-primary/10 text-primary">
+                    {isSelf && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {t('current')}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{u.email || '-'}</TableCell>
+                  <TableCell>
+                    <Badge variant={roleBadgeVariant[u.role] || 'default'}>
                       {roleLabel[u.role] || u.role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{u.created_at || '-'}</td>
-                  <td className="px-4 py-3 text-right">
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{u.created_at || '-'}</TableCell>
+                  <TableCell className="text-right">
                     {isSelf ? (
                       <span className="text-xs text-muted-foreground">-</span>
                     ) : (
-                      <button
-                        onClick={() => handleDelete(u.username)}
-                        className="text-xs text-red-500 hover:text-red-700 transition"
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => {
+                          setDeleteError(null)
+                          setDeleteTarget(u.username)
+                        }}
                       >
-                        删除
-                      </button>
+                        {t('delete')}
+                      </Button>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )
             })}
-            {users.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                  暂无用户
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      )}
+
+      <Dialog open={deleteTarget !== null} onClose={() => setDeleteTarget(null)}>
+        <DialogTitle>{t('delete')}</DialogTitle>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {t('confirmDeleteUser', { username: deleteTarget || '' })}
+        </p>
+        {deleteError && (
+          <p className="mt-2 text-sm text-destructive">{deleteError}</p>
+        )}
+        <DialogActions>
+          <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
+            {t('common:cancel')}
+          </Button>
+          <Button variant="destructive" onClick={handleDelete}>
+            {t('common:confirm')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   )
 }

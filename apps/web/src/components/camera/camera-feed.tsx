@@ -12,7 +12,7 @@ export function CameraFeed({ className }: CameraFeedProps) {
   const [error, setError] = useState<string | null>(null)
 
   const handleError = useCallback(() => {
-    setError('连接失败')
+    setError('connection_error')
     setLoaded(false)
     const delay = Math.min(2000 * Math.pow(1.5, retryCount), 10000)
     setTimeout(() => {
@@ -30,20 +30,20 @@ export function CameraFeed({ className }: CameraFeedProps) {
   }, [])
 
   return (
-    <div className={cn('relative bg-gray-100 aspect-video rounded-lg', className)}>
+    <div className={cn('relative bg-muted aspect-video rounded-lg overflow-hidden', className)}>
       {(!loaded || error) && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 rounded-lg gap-2 z-10">
-          <div className="w-8 h-8 border-4 border-gray-200 border-t-[#457b9d] rounded-full animate-spin" />
-          <p className="text-gray-400 text-sm">
-            {error ? `${error}，正在重连...` : '正在连接摄像头...'}
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted gap-2 z-10">
+          <div className="w-7 h-7 border-2 border-muted-foreground/20 border-t-primary rounded-full animate-spin" />
+          <p className="text-muted-foreground text-xs">
+            {!loaded && !error ? 'Connecting...' : 'Reconnecting...'}
           </p>
         </div>
       )}
       <img
         ref={imgRef}
         src="/api/cameras/video_feed"
-        alt="摄像头预览"
-        className="w-full h-full object-contain rounded-lg shadow-lg"
+        alt="Camera feed"
+        className="w-full h-full object-contain"
         onError={handleError}
         onLoad={handleLoad}
       />

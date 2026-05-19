@@ -1,0 +1,21 @@
+{
+  "manualReview": "人工复审",
+  "pending": "待处理",
+  "all": "全部",
+  "noData": "暂无数据",
+  "statusPending": "待处理",
+  "statusApproved": "已通过",
+  "statusRejected": "已拒绝",
+  "statusStamping": "待盖章",
+  "expand": "展开",
+  "collapse": "收起",
+  "docImage": "文件图像",
+  "reviewFile": "复审文件",
+  "noImage": "无图片",
+  "ocrResult": "OCR 识别结果",
+  "warnings": "警告信息",
+  "extractedFields": "提取字段",
+  "noDetailData": "无详细数据",
+  "approve": "通过",
+  "reject": "拒绝"
+}

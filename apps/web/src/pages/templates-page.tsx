@@ -1,11 +1,28 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { apiFetch, apiDelete } from '@/lib/api-client'
 import type { Template } from '@/types/api'
+import { PageHeader } from '@/components/layout/page-header'
+import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Dialog, DialogTitle, DialogActions } from '@/components/ui/dialog'
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/ui/table'
 
 export function TemplatesPage() {
+  const { t } = useTranslation('admin')
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const refresh = async () => {
     try {
@@ -23,13 +40,15 @@ export function TemplatesPage() {
     refresh()
   }, [])
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('确定删除此模板？')) return
+  const handleDelete = async () => {
+    if (deleteTarget === null) return
     try {
-      await apiDelete(`/templates/${id}`)
+      await apiDelete(`/templates/${deleteTarget}`)
       refresh()
     } catch (err) {
-      alert(err instanceof Error ? err.message : '删除失败')
+      setDeleteError(err instanceof Error ? err.message : t('deleteFailed'))
+    } finally {
+      setDeleteTarget(null)
     }
   }
 
@@ -37,78 +56,104 @@ export function TemplatesPage() {
     window.open(`/api/templates/${id}/export`, '_blank')
   }
 
-  if (loading) return <div className="text-center py-8 text-muted-foreground">加载中...</div>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Spinner className="h-6 w-6" />
+      </div>
+    )
+  }
 
   return (
-    <div className="card bg-white rounded-xl shadow p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold text-[#1d3557]">模板管理</h2>
-        <div className="flex gap-2">
-          <button
-            onClick={() => window.open('/api/templates/export/all', '_blank')}
-            className="px-3 py-1.5 bg-gray-100 text-sm rounded-lg hover:bg-gray-200"
-          >
-            导出全部
-          </button>
-          <Link
-            to="/admin/templates/new"
-            className="px-3 py-1.5 bg-[#457b9d] text-white text-sm rounded-lg hover:opacity-90"
-          >
-            新建模板
-          </Link>
-        </div>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr>
-              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">名称</th>
-              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">编码</th>
-              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">字段数</th>
-              <th className="bg-gray-50 px-3 py-2 text-left border-b-2 border-gray-200">操作</th>
-            </tr>
-          </thead>
-          <tbody>
+    <div>
+      <PageHeader
+        title={t('templateManagement')}
+        actions={
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => window.open('/api/templates/export/all', '_blank')}
+            >
+              {t('exportAll')}
+            </Button>
+            <Link to="/admin/templates/new">
+              <Button size="sm">{t('newTemplate')}</Button>
+            </Link>
+          </div>
+        }
+      />
+
+      {templates.length === 0 ? (
+        <EmptyState title={t('common:noData')} />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('templateName')}</TableHead>
+              <TableHead>{t('templateCode')}</TableHead>
+              <TableHead>{t('fieldCount')}</TableHead>
+              <TableHead>{t('common:actions')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {templates.map((tpl) => (
-              <tr key={tpl.id} className="hover:bg-gray-50">
-                <td className="px-3 py-2 border-b border-gray-100 font-medium">{tpl.name}</td>
-                <td className="px-3 py-2 border-b border-gray-100">
-                  <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">{tpl.code}</code>
-                </td>
-                <td className="px-3 py-2 border-b border-gray-100">
+              <TableRow key={tpl.id}>
+                <TableCell className="font-medium">{tpl.name}</TableCell>
+                <TableCell>
+                  <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{tpl.code}</code>
+                </TableCell>
+                <TableCell>
                   {tpl.field_stats
-                    ? `${tpl.field_stats.required}必填 / ${tpl.field_stats.optional}选填`
+                    ? `${tpl.field_stats.required} / ${tpl.field_stats.optional}`
                     : tpl.fields?.length || 0}
-                </td>
-                <td className="px-3 py-2 border-b border-gray-100">
+                </TableCell>
+                <TableCell>
                   <div className="flex gap-2">
-                    <Link
-                      to={`/admin/templates/${tpl.id}/edit`}
-                      className="text-[#457b9d] hover:underline text-xs"
-                    >
-                      编辑
+                    <Link to={`/admin/templates/${tpl.id}/edit`}>
+                      <Button variant="ghost" size="sm">
+                        {t('edit')}
+                      </Button>
                     </Link>
-                    <button
-                      onClick={() => handleExport(tpl.id)}
-                      className="text-gray-500 hover:underline text-xs"
-                    >
-                      导出
-                    </button>
+                    <Button variant="ghost" size="sm" onClick={() => handleExport(tpl.id)}>
+                      {t('export')}
+                    </Button>
                     {!tpl.is_system && (
-                      <button
-                        onClick={() => handleDelete(tpl.id)}
-                        className="text-red-500 hover:underline text-xs"
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => {
+                          setDeleteError(null)
+                          setDeleteTarget(tpl.id)
+                        }}
                       >
-                        删除
-                      </button>
+                        {t('delete')}
+                      </Button>
                     )}
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      )}
+
+      <Dialog open={deleteTarget !== null} onClose={() => setDeleteTarget(null)}>
+        <DialogTitle>{t('delete')}</DialogTitle>
+        <p className="mt-2 text-sm text-muted-foreground">{t('confirmDeleteTemplate')}</p>
+        {deleteError && (
+          <p className="mt-2 text-sm text-destructive">{deleteError}</p>
+        )}
+        <DialogActions>
+          <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
+            {t('common:cancel')}
+          </Button>
+          <Button variant="destructive" onClick={handleDelete}>
+            {t('common:confirm')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   )
 }

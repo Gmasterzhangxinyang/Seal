@@ -1,0 +1,13 @@
+{
+  "appName": "MEC202",
+  "appSubtitle": "Document Verification & Stamping",
+  "dashboard": "Dashboard",
+  "leaveApplications": "Leave Applications",
+  "auditLogs": "Audit Logs",
+  "manualReview": "Manual Review",
+  "templateManagement": "Templates",
+  "userManagement": "Users",
+  "statsPanel": "Statistics",
+  "armCalibration": "Calibration",
+  "logout": "Logout"
+}

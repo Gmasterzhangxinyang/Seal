@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { apiPost } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 
@@ -34,6 +35,7 @@ function stopSpeaking() {
 let _sessionId = `voice-${Date.now()}`
 
 export function VoiceControl() {
+  const { t } = useTranslation('stamp')
   const [listening, setListening] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [speaking, setSpeaking] = useState(false)
@@ -45,7 +47,7 @@ export function VoiceControl() {
   const sendCommand = useCallback(async (text: string) => {
     if (!text.trim()) return
     setProcessing(true)
-    setLogs((prev) => [...prev, `🎤 ${text}`])
+    setLogs((prev) => [...prev, `> ${text}`])
     try {
       const res = await apiPost<{
         reply: string
@@ -55,12 +57,8 @@ export function VoiceControl() {
 
       setLogs((prev) => {
         const next = [...prev]
-        if (res.action_description) {
-          next.push(`⚙️ ${res.action_description}`)
-        }
-        if (res.reply) {
-          next.push(`🤖 ${res.reply}`)
-        }
+        if (res.action_description) next.push(`  [${res.action_description}]`)
+        if (res.reply) next.push(`  ${res.reply}`)
         return next
       })
 
@@ -69,85 +67,61 @@ export function VoiceControl() {
         speak(res.reply)
       }
     } catch {
-      setLogs((prev) => [...prev, '❌ 处理失败'])
+      setLogs((prev) => [...prev, `  ! ${t('processFailed')}`])
     } finally {
       setProcessing(false)
     }
-  }, [])
+  }, [t])
 
   const startListening = useCallback(async () => {
-    if (_currentAudio) {
-      stopSpeaking()
-      setSpeaking(false)
-    }
-
+    if (_currentAudio) { stopSpeaking(); setSpeaking(false) }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
-
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
           ? 'audio/ogg;codecs=opus'
           : 'audio/webm'
-
       const recorder = new MediaRecorder(stream, { mimeType })
       recorderRef.current = recorder
       chunksRef.current = []
 
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data)
-        }
-      }
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
 
       recorder.onstop = async () => {
         const blob = new Blob(chunksRef.current, { type: mimeType })
         stream.getTracks().forEach(t => t.stop())
         setProcessing(true)
-
         try {
-          const res = await fetch('/api/voice/asr', {
-            method: 'POST',
-            credentials: 'include',
-            body: blob,
-          })
-
+          const res = await fetch('/api/voice/asr', { method: 'POST', credentials: 'include', body: blob })
           if (!res.ok) throw new Error('ASR failed')
           const data = await res.json() as { text: string }
-          if (data.text?.trim()) {
-            sendCommand(data.text)
-          } else {
-            setProcessing(false)
-          }
+          if (data.text?.trim()) sendCommand(data.text)
+          else setProcessing(false)
         } catch {
-          setLogs((prev) => [...prev, '❌ 语音识别失败'])
+          setLogs((prev) => [...prev, `  ! ${t('voiceRecognitionFailed')}`])
           setProcessing(false)
         }
       }
 
       recorder.start()
       setListening(true)
-      setLogs((prev) => [...prev, '🎤 开始录音...'])
+      setLogs((prev) => [...prev, `> ${t('recording')}`])
     } catch {
-      setLogs((prev) => [...prev, '❌ 无法访问麦克风'])
+      setLogs((prev) => [...prev, `  ! ${t('noMicrophoneAccess')}`])
     }
-  }, [sendCommand])
+  }, [sendCommand, t])
 
   const stopListening = () => {
-    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-      recorderRef.current.stop()
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop())
-      streamRef.current = null
-    }
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop()
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null }
     setListening(false)
   }
 
   return (
-    <div className="max-w-[480px] mx-auto">
-      <div className="flex items-center justify-center gap-3 mb-3">
+    <div className="w-full">
+      <div className="flex items-center gap-3 mb-3">
         <button
           onMouseDown={startListening}
           onMouseUp={stopListening}
@@ -155,28 +129,28 @@ export function VoiceControl() {
           onTouchEnd={stopListening}
           disabled={processing}
           className={cn(
-            'w-16 h-16 rounded-full border-2 flex items-center justify-center text-3xl transition-all select-none',
+            'w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all duration-150 ease-out select-none cursor-pointer',
             listening
-              ? 'border-red-500 bg-red-50 scale-110'
-              : 'border-gray-300 bg-white hover:border-[#457b9d] hover:bg-blue-50',
-            speaking && 'border-green-500 bg-green-50',
-            'disabled:opacity-50 disabled:cursor-not-allowed',
+              ? 'border-destructive bg-destructive/10 scale-105'
+              : 'border-border bg-card hover:border-primary hover:bg-primary/5',
+            speaking && 'border-success bg-success/10',
+            'disabled:opacity-40 disabled:cursor-not-allowed',
           )}
         >
-          {listening ? '🔴' : '🎤'}
+          <span className="text-lg">{listening ? '●' : '○'}</span>
         </button>
-        <div className="text-sm">
-          <div className="font-medium text-gray-700">
-            {listening ? '录音中...' : processing ? '识别中...' : speaking ? '回复中...' : '按住说话'}
+        <div>
+          <div className="text-sm font-medium text-foreground">
+            {listening ? t('recording') : processing ? t('recognizing') : speaking ? t('replying') : t('holdToSpeak')}
           </div>
-          <div className="text-xs text-gray-400 mt-0.5">语音对话 · 按住说话，松开识别</div>
+          <div className="text-xs text-muted-foreground">{t('voiceControlHint')}</div>
         </div>
       </div>
 
       {logs.length > 0 && (
-        <div className="bg-gray-900 rounded-lg p-3 text-left font-mono text-xs max-h-[160px] overflow-y-auto">
+        <div className="bg-foreground rounded-md p-2.5 text-left font-mono text-[11px] max-h-[120px] overflow-y-auto leading-relaxed">
           {logs.map((log, i) => (
-            <div key={i} className="py-0.5 text-gray-400">{log}</div>
+            <div key={i} className="py-px text-muted-foreground/80">{log}</div>
           ))}
         </div>
       )}

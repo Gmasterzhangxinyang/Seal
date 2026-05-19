@@ -1,10 +1,15 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent } from '@/components/ui/card'
 
 export function LoginPage() {
   const login = useAuthStore((s) => s.login)
   const navigate = useNavigate()
+  const { t } = useTranslation('auth')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -18,16 +23,16 @@ export function LoginPage() {
       await login(username, password)
       navigate('/', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : '登录失败')
+      setError(err instanceof Error ? err.message : t('loginFailed'))
     } finally {
       setLoading(false)
     }
   }
 
   const demoUsers = [
-    { user: 'admin', pw: 'admin123', label: '管理员' },
-    { user: 'operator1', pw: 'op123', label: '操作员' },
-    { user: 'reviewer1', pw: 'reviewer123', label: '复审员' },
+    { user: 'admin', pw: 'admin123', labelKey: 'admin' },
+    { user: 'operator1', pw: 'op123', labelKey: 'operator' },
+    { user: 'reviewer1', pw: 'reviewer123', labelKey: 'reviewer' },
   ]
 
   const fillDemo = (u: string, p: string) => {
@@ -36,62 +41,64 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="w-full max-w-sm bg-card rounded-xl shadow-lg p-8">
-        <h1 className="text-xl font-bold text-center mb-6 text-[#1d3557]">文档盖章系统</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">用户名</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <Card className="w-full max-w-sm">
+        <CardContent className="p-8">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-foreground">{t('docStampSystem')}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">MEC202</p>
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">密码</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-          </div>
-          {error && <p className="text-sm text-red-500">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2 bg-[#457b9d] text-white rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 transition"
-          >
-            {loading ? '登录中...' : '登录'}
-          </button>
-        </form>
-        <p className="text-sm text-center mt-4 text-muted-foreground">
-          没有账号？{' '}
-          <Link to="/register" className="text-[#457b9d] hover:underline">
-            注册
-          </Link>
-        </p>
 
-        {/* Demo 用户快捷入口 */}
-        <div className="mt-5 pt-4 border-t">
-          <p className="text-xs text-muted-foreground text-center mb-2">演示账号</p>
-          <div className="flex gap-2">
-            {demoUsers.map((d) => (
-              <button
-                key={d.user}
-                onClick={() => fillDemo(d.user, d.pw)}
-                className="flex-1 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition text-gray-600"
-              >
-                {d.label}
-              </button>
-            ))}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1.5 text-foreground">{t('username')}</label>
+              <Input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                error={!!error}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1.5 text-foreground">{t('password')}</label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                error={!!error}
+              />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button type="submit" loading={loading} className="w-full">
+              {loading ? t('loginInProgress') : t('login')}
+            </Button>
+          </form>
+
+          <p className="text-sm text-center mt-5 text-muted-foreground">
+            {t('noAccount')}{' '}
+            <Link to="/register" className="text-primary hover:underline font-medium">
+              {t('register')}
+            </Link>
+          </p>
+
+          <div className="mt-6 pt-5 border-t border-border">
+            <p className="text-xs text-muted-foreground text-center mb-2.5">{t('demoAccounts')}</p>
+            <div className="flex gap-2">
+              {demoUsers.map((d) => (
+                <button
+                  key={d.user}
+                  onClick={() => fillDemo(d.user, d.pw)}
+                  className="flex-1 py-1.5 text-xs bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md transition cursor-pointer font-medium"
+                >
+                  {t(d.labelKey)}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth-store'
+import { startConnectionMonitor } from '@/stores/connection-store'
 import { AppShell } from '@/components/layout/app-shell'
 import { LoginPage } from '@/pages/login-page'
 import { RegisterPage } from '@/pages/register-page'
@@ -39,6 +40,8 @@ export default function App() {
     } else {
       useAuthStore.setState({ loading: false })
     }
+    const timer = startConnectionMonitor()
+    return () => clearInterval(timer)
   }, [checkAuth])
 
   return (
