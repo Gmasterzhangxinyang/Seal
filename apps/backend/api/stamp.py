@@ -145,9 +145,27 @@ def stamp_leave(session: dict = Depends(get_session)):
             application_id = qr_data.get("application_id", "")
             yield _sse("log", f"申请编号: {application_id}")
 
-            # 4. OCR 识别（GLM-4V）
+            # 4. OCR 识别（GLM-4V），识别不清时自动重新拍照+识别
             yield _sse("log", "正在调用 GLM-4V 识别请假条内容（可能需要几秒）...")
             extracted_fields = _gpt4v_extract(before_img)
+
+            # 重试机制：识别结果太少时重新拍照再识别
+            _MAX_RETRIES = 2
+            for _retry in range(_MAX_RETRIES):
+                if not extracted_fields:
+                    break  # 完全失败，不重试
+                if len(extracted_fields) >= 4:
+                    break  # 识别质量足够
+                yield _sse("log", f"识别字段偏少 ({len(extracted_fields)}个)，重新拍照识别...")
+                retry_img = camera.capture_timestamped("leave_ocr_retry")
+                retry_fields = _gpt4v_extract(retry_img)
+                if retry_fields and len(retry_fields) > len(extracted_fields):
+                    extracted_fields = retry_fields
+                    before_img = retry_img  # 使用重新拍照的图片
+                    yield _sse("log", f"重试成功，识别到 {len(extracted_fields)} 个字段")
+                else:
+                    yield _sse("log", "重试未改善，使用首次识别结果")
+
             if not extracted_fields:
                 yield _sse("result", json.dumps({
                     "success": False, "decision": "REJECT", "risk_score": 70,
@@ -254,6 +272,26 @@ def stamp_leave(session: dict = Depends(get_session)):
 
             elif decision == "REVIEW":
                 yield _sse("log", "进入人工复审队列...")
+                # Feishu notification to Wene
+                try:
+                    from services.notify import notify_review_queue
+                    # 判断触发原因：纸张移动 or Dify 无法自动裁决
+                    warn_texts = vresult_dict.get("warnings", [])
+                    is_paper_moved = any("纸张" in w for w in warn_texts)
+                    reason = (
+                        "盖章前检测到纸张位置移动"
+                        if is_paper_moved
+                        else "Dify AI 无法自动裁决，需人工审批"
+                    )
+                    notify_review_queue(
+                        operator_id=operator_id,
+                        doc_type="leave",
+                        reason=reason,
+                        warnings=warn_texts,
+                        application_id=application_id,
+                    )
+                except Exception:
+                    pass  # never let notification failure break the main flow
                 with get_db() as conn:
                     conn.execute(
                         text("""
