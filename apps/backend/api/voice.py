@@ -1,260 +1,275 @@
-import logging
-import json
-import os
+"""语音模块 — 全部基于 Dify 工作流"""
 
-from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
+import hashlib
+import logging
+import os
+import threading
+
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
-
-from api.deps import get_session
 
 router = APIRouter(prefix="/voice", tags=["voice"])
 logger = logging.getLogger(__name__)
 
-_sessions: dict[str, list] = {}
+# TTS 缓存目录（预生成固定回复音频，避免每次调 Dify TTS）
+TTS_CACHE_DIR = os.path.join(os.path.dirname(__file__), "tts_cache")
+os.makedirs(TTS_CACHE_DIR, exist_ok=True)
 
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "arm_home",
-            "description": "控制机械臂回到中位（所有舵机归零）",
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "arm_move",
-            "description": "控制机械臂移动到指定位置，servos 是 0-5 号舵机的 PWM 值（500-2500）",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "servos": {
-                        "type": "object",
-                        "properties": {
-                            "0": {"type": "integer", "description": "底盘 PWM"},
-                            "1": {"type": "integer", "description": "大臂 PWM"},
-                            "2": {"type": "integer", "description": "小臂 PWM"},
-                            "3": {"type": "integer", "description": "手腕 PWM"},
-                            "4": {"type": "integer", "description": "夹爪 PWM"},
-                            "5": {"type": "integer", "description": "辅助 PWM"},
-                        },
-                    },
-                },
-                "required": ["servos"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "arm_greet",
-            "description": "向观众打招呼动作：手腕（S3）抬起再放下",
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "stamp_leave_check",
-            "description": "智能盖章：拍照→扫码→识别→核验→通过则盖章。返回核验结果供你生成回复。",
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "query_leave_history",
-            "description": "查询历史请假记录。可按姓名搜索，不传姓名则返回最近 10 条记录。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "学生姓名（可选，不传则返回最近记录）",
-                    },
-                },
-                "required": [],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "query_audit_logs",
-            "description": "查询最近的盖章操作日志，包括操作时间、操作人、文档类型、结果等。",
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-]
-
-SYSTEM_PROMPT = """你是机械臂语音助手，名叫小臂。用户通过语音和你对话。
-
-你可以调用的工具：
-- arm_home: 回中位
-- arm_move: 移动到指定位置
-- arm_greet: 打招呼动作
-- stamp_leave_check: 智能盖章（自动拍照、扫码、核验、盖章）
-- query_leave_history: 查询历史请假记录（可按姓名搜索）
-- query_audit_logs: 查询最近的盖章操作日志
-
-规则：
-- 你先根据用户意图调用工具，再根据工具返回结果生成自然的语音回复
-- 回复要简短自然，像朋友聊天，不要太机械
-- 用户问历史记录时，用 query_leave_history 查询后自然地告诉结果
-- 用户问盖章记录时，用 query_audit_logs 查询后告诉结果
-- 如果盖章核验通过，你要先说"好的，我现在就盖章"，调用工具后再说"盖章完成啦"
-- 如果核验不通过，用工具返回的原因自然地告诉用户为什么不能盖章
-- 如果用户没放请假条或者扫不到码，提示用户放好请假条再试
-- 不可重复盖章"""
+# 固定回复文本 → 预生成 TTS（工具 1-4）
+FIXED_TTS_TEXTS = {
+    1: "好的，机械臂已回到中位",
+    2: "好的，机械臂正在移动",
+    3: "好的，手腕抬起又放下啦",
+    4: "好的，现在开始盖章",
+}
 
 
-class ChatRequest(BaseModel):
-    session_id: str
-    text: str
+def _text_cache_key(text: str) -> str:
+    return hashlib.md5(text.encode()).hexdigest()
 
 
-class ChatResponse(BaseModel):
-    reply: str
-    action: str | None = None
-    action_description: str | None = None
+def _get_cached_tts_audio(text: str) -> bytes | None:
+    """从缓存获取 TTS 音频，缓存不存在则返回 None"""
+    key = _text_cache_key(text)
+    path = os.path.join(TTS_CACHE_DIR, f"{key}.wav")
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            return f.read()
+    return None
 
 
-def _execute_tool(name: str, arguments: dict) -> str:
-    """执行工具，返回结果描述"""
+def _cache_tts_audio(text: str, audio: bytes):
+    """写入 TTS 缓存"""
+    key = _text_cache_key(text)
+    path = os.path.join(TTS_CACHE_DIR, f"{key}.wav")
+    with open(path, "wb") as f:
+        f.write(audio)
+
+
+def _prewarm_tts_cache():
+    """后台预生成固定回复的 TTS 缓存"""
+    def _generate():
+        from utils.dify_client import call_dify_tts
+        logger.info("[voice] 开始预热 TTS 缓存...")
+        for tool_id, text in FIXED_TTS_TEXTS.items():
+            if _get_cached_tts_audio(text):
+                logger.info(f"[voice] TTS 缓存已存在: tool_id={tool_id}")
+                continue
+            try:
+                audio = call_dify_tts(text)
+                if audio:
+                    _cache_tts_audio(text, audio)
+                    logger.info(f"[voice] TTS 缓存预生成成功: tool_id={tool_id}")
+            except Exception as e:
+                logger.warning(f"[voice] TTS 预生成失败 tool_id={tool_id}: {e}")
+        logger.info("[voice] TTS 缓存预热完成")
+
+    threading.Thread(target=_generate, daemon=True).start()
+
+
+# 启动时预热 TTS 缓存（后台，不阻塞）
+_prewarm_tts_cache()
+
+
+def _execute_hardware(tool_id: int, comment: str):
+    """后台线程执行机械臂动作，不阻塞主线程"""
     from api.calibration import get_arm
     from hardware.wearm import PWM_MID
+    import time
 
-    if name == "arm_home":
-        get_arm().move_to({i: PWM_MID for i in range(6)}, 1200)
-        return "机械臂已回到中位"
+    try:
+        if tool_id == 1:  # arm_home
+            get_arm().move_to({i: PWM_MID for i in range(6)}, 1200)
+            logger.info("[voice] arm_home 执行完成")
 
-    elif name == "arm_move":
-        servos_raw = arguments.get("servos", {})
-        int_servos = {int(k): int(v) for k, v in servos_raw.items()}
-        get_arm().move_to(int_servos, 1200)
-        return f"机械臂已移动到指定位置 {int_servos}"
+        elif tool_id == 2:  # arm_move
+            logger.info(f"[voice] arm_move: {comment}")
 
-    elif name == "arm_greet":
-        get_arm().move_single(3, 2200, 500)
-        import time
-        time.sleep(0.5)
-        get_arm().move_single(3, 1500, 500)
-        return "打招呼动作完成，手腕抬起又放下了"
+        elif tool_id == 3:  # arm_greet
+            get_arm().move_single(3, 2200, 500)
+            time.sleep(0.5)
+            get_arm().move_single(3, 1500, 500)
+            logger.info("[voice] arm_greet 执行完成")
 
-    elif name == "stamp_leave_check":
-        return _do_stamp_leave_check()
+        elif tool_id == 4:  # stamp_leave_check
+            from api.stamp import _do_leave_stamp
+            _do_leave_stamp("")
+            logger.info("[voice] stamp_leave_check 执行完成")
+    except Exception as e:
+        logger.error(f"[voice] 机械臂执行失败: {e}")
 
-    elif name == "query_leave_history":
-        return _query_leave_history(arguments.get("name"))
 
-    elif name == "query_audit_logs":
-        return _query_audit_logs()
+def _summarize_text(raw_text: str, task_hint: str) -> str:
+    """用 LLM 将原始查询数据总结成自然语言，返回简短口语化回复"""
+    try:
+        from openai import OpenAI
+        from config import CHAT_MODEL, VLM_API_KEY, VLM_BASE_URL
+
+        client = OpenAI(api_key=VLM_API_KEY or "EMPTY", base_url=VLM_BASE_URL or "https://open.bigmodel.cn/api/paas/v4")
+        prompt = (
+            f"你是机械臂语音助手小臂的查询总结助手。{task_hint}结果如下，"
+            f"请用简短、口语化、自然的语言（50字以内）总结给用户：\n\n{raw_text}"
+        )
+        response = client.chat.completions.create(
+            model=CHAT_MODEL or "glm-4-flash",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=80,
+            temperature=0.3,
+        )
+        summary = response.choices[0].message.content.strip()
+        logger.info(f"[voice] LLM总结: {summary}")
+        return summary
+    except Exception as e:
+        logger.warning(f"[voice] LLM总结失败，回退原始文本: {e}")
+        return raw_text
+
+
+def _execute_tool(tool_id: int, comment: str) -> str:
+    """根据 tool_id 执行机械臂动作或查询数据库，返回查询结果"""
+    if tool_id in (1, 2, 3, 4):
+        # 机械臂动作：后台执行，不阻塞，立即返回
+        threading.Thread(target=_execute_hardware, args=(tool_id, comment), daemon=True).start()
+        return FIXED_TTS_TEXTS.get(tool_id, "好的")
+
+    elif tool_id == 5:  # query_leave_history
+        import re
+        from sqlalchemy import text
+        from database.connection import get_db
+        # 从 comment 中提取中文姓名
+        name_match = re.search(r'[\u4e00-\u9fff]{2,4}', comment)
+        name = name_match.group() if name_match else None
+        with get_db() as conn:
+            if name:
+                rows = conn.execute(
+                    text(
+                        """SELECT student_name, student_id, dept, leave_type, start_date, end_date, status, created_at
+                           FROM leave_applications WHERE student_name = :name
+                           ORDER BY id DESC LIMIT 10"""
+                    ),
+                    {"name": name},
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    text(
+                        """SELECT student_name, student_id, dept, leave_type, start_date, end_date, status, created_at
+                           FROM leave_applications ORDER BY id DESC LIMIT 10"""
+                    ),
+                ).fetchall()
+        if not rows:
+            return f"没有找到{'的请假记录' if name else '请假记录'}"
+        # 统计请假次数
+        leave_count = len(rows)
+        name_in_record = rows[0][0]
+        student_id = rows[0][1] or "未知"
+        dept = rows[0][2] or "未知部门"
+        # 格式化每条记录
+        lines = [f"{r[3]}，{r[4]}到{r[5]}，状态：{r[6]}" for r in rows]
+        raw = f"姓名：{name_in_record}，学号：{student_id}，部门：{dept}，共请假{leave_count}次；" + "；".join(lines)
+        return _summarize_text(raw, "请假记录查询")
+
+    elif tool_id == 6:  # query_audit_logs
+        from sqlalchemy import text
+        from database.connection import get_db
+        with get_db() as conn:
+            rows = conn.execute(
+                text(
+                    """SELECT timestamp, operator_id, doc_type, result
+                       FROM audit_log WHERE result IN ('APPROVED', 'STAMPED')
+                       ORDER BY id DESC LIMIT 10"""
+                ),
+            ).fetchall()
+        if not rows:
+            return "近期没有盖章成功记录"
+        lines = [f"{r[0]}，{r[1]}，{r[2] or '未知'}，结果：{r[3]}" for r in rows]
+        raw = "盖章成功记录：" + "；".join(lines)
+        return _summarize_text(raw, "盖章记录查询")
 
     return "未知动作"
 
 
-def _do_stamp_leave_check() -> str:
-    """执行智能盖章流程，返回核验结果"""
-    import time
+class TTSRequest(BaseModel):
+    text: str
 
+
+@router.post("/chat")
+async def voice_chat(request: Request):
+    """接收前端录音，转发给 Dify 语音问答工作流，返回 tool_id + comment"""
     try:
-        from vision.camera import SharedCamera
-        from vision.qr_scanner import scan_qr
-        from api.stamp import _gpt4v_extract, _do_leave_stamp
-        from api.calibration import get_arm
-        from hardware.wearm import PWM_MID
-        from validator.leave_validator import verify_leave_application
-        from database.audit import log_action
-        from config import SIMULATION_MODE
-        from datetime import datetime
+        form = await request.form()
+        audio_file = form.get("audio")
+        if not audio_file:
+            raise HTTPException(400, "未找到音频文件")
 
-        # 1. 拍照
-        camera = SharedCamera.get_instance()
-        before_img = camera.capture_timestamped("voice_leave")
-        logger.info("[voice/stamp] 拍照完成")
+        audio_bytes = await audio_file.read()
 
-        # 2. 扫码
-        qr_content, _ = scan_qr(before_img)
-        if not qr_content:
-            return "未检测到二维码，请确保请假条上的二维码在摄像头视野内"
+        from utils.dify_client import call_dify_voice_chat
 
-        # 3. 解析二维码
-        try:
-            qr_data = json.loads(qr_content)
-        except Exception:
-            return "二维码内容无法解析"
+        result = call_dify_voice_chat(audio_bytes, audio_file.filename or "voice.mp3")
 
-        if "application_id" not in qr_data:
-            return "二维码不是请假条二维码"
+        tool_id = result.get("tool_id")
+        comment = result.get("comment", "")
 
-        application_id = qr_data.get("application_id", "")
+        # 执行对应的机械臂动作或查询数据库
+        audio_b64 = None
+        if tool_id in (1, 2, 3, 4, 5, 6):
+            try:
+                query_result = _execute_tool(tool_id, comment)
+                logger.info(f"[voice] tool_id={tool_id}, query_result={query_result[:50] if query_result else None}")
+                # tool_id 5-6 用真实查询结果覆盖 comment
+                if tool_id in (5, 6) and query_result:
+                    comment = query_result
+                # tool_id 1-4 直接返回缓存的 TTS 音频，前端不用再调 /tts
+                if tool_id in (1, 2, 3, 4):
+                    cached = _get_cached_tts_audio(comment)
+                    logger.info(f"[voice] cache lookup for '{comment}': {'HIT' if cached else 'MISS'}")
+                    if cached:
+                        import base64
+                        audio_b64 = base64.b64encode(cached).decode()
+                    else:
+                        # 缓存未命中，同步调 Dify TTS 并缓存
+                        from utils.dify_client import call_dify_tts
+                        try:
+                            audio = call_dify_tts(comment)
+                            if audio:
+                                _cache_tts_audio(comment, audio)
+                                audio_b64 = base64.b64encode(audio).decode()
+                                logger.info(f"[voice] TTS generated and cached for '{comment}'")
+                        except Exception as e:
+                            logger.warning(f"[voice] TTS generate failed: {e}")
+            except Exception as e:
+                logger.error(f"[voice] 执行工具失败: {e}")
 
-        # 4. GLM-4V 识别
-        extracted_fields = _gpt4v_extract(before_img)
-        if not extracted_fields:
-            return "视觉模型识别失败，请检查请假条是否清晰"
-
-        fields_summary = ", ".join(
-            f"{k}={v}" for k, v in extracted_fields.items() if v
-        )
-        logger.info(f"[voice/stamp] 识别字段: {fields_summary}")
-
-        # 5. 核验
-        result = verify_leave_application(qr_content, extracted_fields, 0.95)
-        decision = result.decision
-        errors = result.errors
-        warnings = result.warnings
-
-        # 6. 执行盖章或返回原因
-        if decision == "PASS" and not errors:
-            if not SIMULATION_MODE:
-                # 先回中位，确保和原始盖章按钮从同一位置出发
-                get_arm().move_to({i: PWM_MID for i in range(6)}, 1200)
-                time.sleep(1.2)
-                _do_leave_stamp(before_img)
-                logger.info("[voice/stamp] 盖章完成")
-            else:
-                logger.info("[voice/stamp] 仿真模式，跳过盖章")
-
-            after_img = camera.capture_timestamped("voice_after")
-            log_action(
-                operator_id="voice",
-                doc_type="leave",
-                qr_content=qr_content,
-                doc_fields=extracted_fields,
-                result="APPROVED",
-                errors=[],
-                before_img=before_img,
-                after_img=after_img,
-                ocr_text=str(extracted_fields),
-            )
-            return f"核验通过，申请编号: {application_id}"
-
-        else:
-            reasons = errors if errors else warnings if warnings else ["核验未通过"]
-            reason_str = "；".join(reasons)
-            log_action(
-                operator_id="voice",
-                doc_type="leave",
-                qr_content=qr_content,
-                doc_fields=extracted_fields,
-                result=decision,
-                errors=reasons,
-                before_img=before_img,
-                after_img=None,
-                ocr_text=str(extracted_fields),
-            )
-            return f"核验未通过（{decision}）。原因：{reason_str}"
-
+        return {
+            "tool_id": tool_id,
+            "comment": comment,
+            "audio": audio_b64,  # 有值时前端直接播放，跳过 /tts 调用
+        }
     except Exception as e:
-        logger.error(f"[voice/stamp] 智能盖章失败: {e}")
-        return f"处理出错: {e}"
+        logger.error(f"[voice/chat] 处理失败: {e}")
+        return {"tool_id": None, "comment": None, "error": str(e)}
 
 
-def _query_leave_history(name: str | None) -> str:
-    """查询历史请假记录"""
+@router.post("/tts")
+def text_to_speech(body: TTSRequest):
+    """通过 Dify voice.yml TTS 工作流将文本转为语音，返回音频"""
+    # 优先从缓存返回（tool_id 1-4 的固定回复已预缓存）
+    cached = _get_cached_tts_audio(body.text)
+    if cached:
+        return Response(content=cached, media_type="audio/wav")
+
+    from utils.dify_client import call_dify_tts
+    audio = call_dify_tts(body.text)
+    if not audio:
+        raise HTTPException(500, "TTS 生成失败")
+    # 写入缓存供后续使用
+    _cache_tts_audio(body.text, audio)
+    return Response(content=audio, media_type="audio/wav")
+
+
+@router.get("/tools/query_leave_history")
+def query_leave_history(name: str | None = None):
+    """查询历史请假记录，供 Dify 工作流 HTTP 节点调用"""
     from sqlalchemy import text
     from database.connection import get_db
 
@@ -277,23 +292,25 @@ def _query_leave_history(name: str | None) -> str:
                     ),
                 ).fetchall()
 
-        if not rows:
-            target = f"关于{name}的" if name else ""
-            return f"没有找到{target}请假记录"
-
-        lines = []
+        data = []
         for r in rows:
-            lines.append(
-                f"{r[0]}（{r[1] or '未知部门'}）{r[2]}，{r[3]}到{r[4]}，状态：{r[5]}"
-            )
-        return "请假记录：\n" + "\n".join(lines)
+            data.append({
+                "student_name": r[0],
+                "dept": r[1] or "",
+                "leave_type": r[2],
+                "start_date": r[3],
+                "end_date": r[4],
+                "status": r[5],
+            })
+        return {"data": data}
     except Exception as e:
-        logger.error(f"[voice] 查询请假记录失败: {e}")
-        return "查询请假记录时出错"
+        logger.error(f"[voice/tools] 查询请假记录失败: {e}")
+        return {"data": [], "error": str(e)}
 
 
-def _query_audit_logs() -> str:
-    """查询最近盖章操作日志"""
+@router.get("/tools/query_audit_logs")
+def query_audit_logs():
+    """查询最近盖章操作日志，供 Dify 工作流 HTTP 节点调用"""
     from sqlalchemy import text
     from database.connection import get_db
 
@@ -306,180 +323,15 @@ def _query_audit_logs() -> str:
                 ),
             ).fetchall()
 
-        if not rows:
-            return "暂无盖章操作记录"
-
-        lines = []
+        data = []
         for r in rows:
-            lines.append(f"{r[0]}，{r[1]}，{r[2] or '未知'}，结果：{r[3]}")
-        return "最近盖章记录：\n" + "\n".join(lines)
-    except Exception as e:
-        logger.error(f"[voice] 查询审计日志失败: {e}")
-        return "查询审计日志时出错"
-
-
-@router.post("/chat")
-def voice_chat(body: ChatRequest, session: dict = Depends(get_session)):
-    """多轮语音对话 + 工具调用"""
-    from openai import OpenAI
-    from config import VLM_API_KEY, VLM_BASE_URL, CHAT_MODEL
-
-    sid = body.session_id
-    if sid not in _sessions:
-        _sessions[sid] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-        ]
-    messages = _sessions[sid]
-    messages.append({"role": "user", "content": body.text})
-
-    client = OpenAI(api_key=VLM_API_KEY, base_url=VLM_BASE_URL)
-
-    try:
-        response = client.chat.completions.create(
-            model=CHAT_MODEL,
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="auto",
-        )
-    except Exception as e:
-        logger.error(f"[voice] LLM 调用失败: {e}")
-        raise HTTPException(500, f"语音理解失败: {e}")
-
-    choice = response.choices[0]
-    msg = choice.message
-    reply = msg.content or ""
-
-    action = None
-    action_desc = None
-
-    # 处理工具调用
-    if msg.tool_calls:
-        # 把用户消息和工具调用都存入历史
-        messages.append(msg.model_dump())
-
-        tool_results = []
-        for tc in msg.tool_calls:
-            fname = tc.function.name
-            try:
-                args = json.loads(tc.function.arguments)
-            except json.JSONDecodeError:
-                args = {}
-            action = fname
-            result = _execute_tool(fname, args)
-            action_desc = result
-            tool_results.append({
-                "role": "tool",
-                "tool_call_id": tc.id,
-                "content": result,
+            data.append({
+                "timestamp": r[0],
+                "operator_id": r[1],
+                "doc_type": r[2] or "",
+                "result": r[3],
             })
-            logger.info(f"[voice] 工具调用: {fname} → {result}")
-
-        messages.extend(tool_results)
-
-        # 让 LLM 根据工具结果生成最终回复
-        try:
-            follow = client.chat.completions.create(
-                model=CHAT_MODEL,
-                messages=messages,
-            )
-            reply = follow.choices[0].message.content or reply
-        except Exception:
-            pass
-
-    messages.append({"role": "assistant", "content": reply})
-
-    # 限制历史长度
-    if len(messages) > 22:
-        _sessions[sid] = [messages[0]] + messages[-20:]
-
-    return ChatResponse(
-        reply=reply, action=action, action_description=action_desc
-    )
-
-
-@router.post("/asr")
-async def transcribe_audio(request: Request):
-    """通过阿里云 DashScope Fun-ASR 识别上传的音频，返回文字"""
-    import os, subprocess, tempfile
-    from config import DASHSCOPE_API_KEY
-
-    os.environ["DASHSCOPE_API_KEY"] = DASHSCOPE_API_KEY
-
-    if not DASHSCOPE_API_KEY:
-        raise HTTPException(500, "DashScope API Key 未配置")
-
-    try:
-        body = await request.body()
-        if len(body) == 0:
-            raise HTTPException(400, "音频数据为空")
-
-        # 写 webm 文件
-        tmp_webm = tempfile.NamedTemporaryFile(suffix=".webm", delete=False)
-        tmp_webm.write(body)
-        tmp_webm.close()
-
-        # 转换 pcm
-        tmp_pcm = tempfile.mktemp(suffix=".pcm")
-        ffmpeg_path = "C:/Program Files/ffmpeg-6.0-full_build/bin/ffmpeg"
-        subprocess.run([
-            ffmpeg_path, "-y", "-i", tmp_webm.name,
-            "-f", "s16le", "-ar", "16000", "-ac", "1",
-            tmp_pcm
-        ], capture_output=True)
-        os.unlink(tmp_webm.name)
-
-        from dashscope.audio.asr import Recognition
-
-        result = Recognition.call(
-            model="paraformer-realtime-v2",
-            input=tmp_pcm,
-            format="pcm",
-            sample_rate=16000,
-            language_hints=["zh"],
-        )
-        text = result.get_sentence().get("text", "") if result else ""
-
-        try:
-            os.unlink(tmp_pcm)
-        except:
-            pass
-
-        logger.info(f"[voice/asr] 识别结果: {text}")
-        return {"text": text}
+        return {"data": data}
     except Exception as e:
-        logger.error(f"[voice/asr] 识别失败: {e}")
-        raise HTTPException(500, f"语音识别失败: {e}")
-
-
-class TTSRequest(BaseModel):
-    text: str
-
-
-@router.post("/tts")
-def text_to_speech(body: TTSRequest):
-    """通过 Fish Audio 将文本转为语音，返回 mp3 音频"""
-    import httpx
-    from config import FISH_AUDIO_API_KEY
-
-    if not FISH_AUDIO_API_KEY:
-        raise HTTPException(500, "Fish Audio API Key 未配置")
-
-    try:
-        with httpx.Client(timeout=30) as client:
-            resp = client.post(
-                "https://api.fish.audio/v1/tts",
-                json={"text": body.text, "format": "mp3"},
-                headers={
-                    "Authorization": f"Bearer {FISH_AUDIO_API_KEY}",
-                    "model": "s2-pro",
-                },
-            )
-        if resp.status_code != 200:
-            logger.error(f"[voice/tts] Fish Audio 返回 {resp.status_code}: {resp.text}")
-            raise HTTPException(502, f"TTS 服务返回 {resp.status_code}")
-        return Response(content=resp.content, media_type="audio/mpeg")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[voice/tts] TTS 调用失败: {e}")
-        raise HTTPException(500, f"语音合成失败: {e}")
+        logger.error(f"[voice/tools] 查询盖章日志失败: {e}")
+        return {"data": [], "error": str(e)}

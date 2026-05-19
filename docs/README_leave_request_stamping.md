@@ -1428,6 +1428,76 @@ SIMULATION_MODE = True
 7. 原有登录、模板、摄像头、标定、复审、日志功能不能被破坏。
 ```
 
+## 25. 语音控制模块（Voice Agent）
+
+### 25.1 架构概览
+
+```
+用户按住说话 → 录音 → POST /api/voice/chat → Dify 语音问答工作流
+                                              ↓
+                              ASR → LLM（Function Calling）
+                                         ↓
+                              tool_id 1-6 + comment
+                                         ↓
+              ┌──────────────────────────┴──────────────────────────┐
+              ↓                                                    ↓
+      tool_id 1-4: 硬件动作                              tool_id 5-6: 数据库查询
+      ├─ 1: arm_home（回中位）                    ├─ 5: query_leave_history
+      ├─ 2: arm_move（移动）                      │   → 查请假记录（支持按姓名）
+      ├─ 3: arm_greet（打招呼）                   └─ 6: query_audit_logs
+      └─ 4: stamp_leave_check（盖章）                 → 查盖章成功日志
+              ↓                                                    ↓
+      后端后台线程执行                          LLM 总结 → 自然语言回复
+      TTS 缓存预热 → 前端直接播放
+```
+
+### 25.2 工具说明
+
+| tool_id | 功能 | 执行者 | 说明 |
+|---|---|---|---|
+| 1 | arm_home | 后端硬件 | 机械臂回中位，所有舵机归零 |
+| 2 | arm_move | 后端硬件 | 移动机械臂到指定位置 |
+| 3 | arm_greet | 后端硬件 | 手腕抬起再放下，打招呼动作 |
+| 4 | stamp_leave_check | 后端硬件 | 智能盖章（拍照→扫码→核验→盖章） |
+| 5 | query_leave_history | 后端数据库 | 查请假记录，支持按姓名精确查找，返回学号+请假次数+LLM总结 |
+| 6 | query_audit_logs | 后端数据库 | 查最近盖章成功记录，LLM总结成自然语言 |
+
+### 25.3 关键文件
+
+| 文件 | 说明 |
+|---|---|
+| `api/voice.py` | 语音模块全部逻辑：执行工具、查数据库、TTS 缓存 |
+| `utils/dify_client.py` | Dify 工作流客户端：语音问答 + voice.yml TTS |
+| `web/src/components/voice-control.tsx` | 前端录音组件，按住说话，松开发送 |
+| `tts_cache/` | TTS 音频缓存目录，启动时预热 |
+
+### 25.4 速度优化
+
+- **工具 1-4**：机械臂后台线程执行，不阻塞；TTS 缓存预热（启动时同步生成），前端直接播放 base64 音频，跳过 `/tts` 请求
+- **工具 5-6**：数据库查询后 LLM 总结，再调 `/tts` 生成语音
+- **TTS 缓存**：缓存 miss 时同步调 Dify voice.yml 生成并缓存，避免重复调用
+
+### 25.5 测试指令
+
+按住语音按钮说话，松开后自动发送：
+
+| tool_id | 指令示例 | 效果 |
+|---|---|---|
+| 1 | "小臂回中位" | 机械臂归位 + 语音回复 |
+| 3 | "小臂打个招呼" | 手腕抬起放下 + 语音回复 |
+| 4 | "小臂帮我盖个章" | 启动盖章流程 + 语音回复 |
+| 5 | "小臂查一下张三的请假记录" | 查询该人请假情况 |
+| 6 | "小臂最近谁盖过章" | 查询盖章成功记录 |
+
+### 25.6 接口一览
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/voice/chat` | 音频 → Dify → 执行工具 → 返回 tool_id + comment + audio |
+| POST | `/api/voice/tts` | 文本 → voice.yml TTS → 音频，优先走缓存 |
+| GET | `/api/voice/tools/query_leave_history` | 查请假记录，支持 `name` 参数 |
+| GET | `/api/voice/tools/query_audit_logs` | 查盖章日志 |
+
 ---
 
 *项目使用 Turborepo Monorepo · Python FastAPI · React 19 · PaddleOCR · MySQL · OpenCV · pyzbar · 机械臂自动盖章*
