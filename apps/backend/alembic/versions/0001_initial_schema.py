@@ -28,7 +28,10 @@ def upgrade() -> None:
         sa.Column("username", sa.String(50), primary_key=True),
         sa.Column("password_hash", sa.String(200), nullable=False),
         sa.Column("role", sa.String(20), nullable=False, server_default="operator"),
+        sa.Column("email", sa.String(100), nullable=False, server_default=""),
+        sa.Column("created_at", sa.String(30), nullable=False, server_default=""),
     )
+    op.create_unique_constraint("uq_users_email", "users", ["email"])
 
     op.create_table(
         "audit_log",
@@ -113,8 +116,64 @@ def upgrade() -> None:
         sa.Column("generated_at", sa.String(30), nullable=False),
     )
 
+    op.create_table(
+        "leave_applications",
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column("application_id", sa.String(64), unique=True, nullable=False),
+        sa.Column("student_id", sa.String(20), nullable=False),
+        sa.Column("student_name", sa.String(50), nullable=False),
+        sa.Column("dept", sa.String(100)),
+        sa.Column("leave_type", sa.String(50), nullable=False),
+        sa.Column("start_date", sa.String(30), nullable=False),
+        sa.Column("end_date", sa.String(30), nullable=False),
+        sa.Column("reason", sa.Text, nullable=False),
+        sa.Column("status", sa.String(30), nullable=False, server_default="SUBMITTED"),
+        sa.Column("qr_content", sa.Text),
+        sa.Column("approved_by", sa.String(50)),
+        sa.Column("approved_at", sa.String(30)),
+        sa.Column("stamped_at", sa.String(30)),
+        sa.Column("created_by", sa.String(50)),
+        sa.Column("created_at", sa.String(30), nullable=False),
+        sa.Column("updated_at", sa.String(30), nullable=False),
+        sa.Column("ai_comment", sa.String(500)),
+    )
+
+    op.create_table(
+        "stamp_tasks",
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column("task_id", sa.String(64), unique=True, nullable=False),
+        sa.Column("application_id", sa.String(64)),
+        sa.Column("operator_id", sa.String(50)),
+        sa.Column("doc_type", sa.String(50), server_default="leave"),
+        sa.Column("status", sa.String(30), nullable=False),
+        sa.Column("decision", sa.String(30)),
+        sa.Column("risk_score", sa.Integer, server_default="0"),
+        sa.Column("before_img", sa.String(500)),
+        sa.Column("after_img", sa.String(500)),
+        sa.Column("qr_content", sa.Text),
+        sa.Column("extracted_fields", sa.Text),
+        sa.Column("verification_result", sa.Text),
+        sa.Column("error_message", sa.Text),
+        sa.Column("created_at", sa.String(30), nullable=False),
+        sa.Column("updated_at", sa.String(30), nullable=False),
+    )
+
+    op.create_table(
+        "verification_results",
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column("task_id", sa.String(64), nullable=False),
+        sa.Column("check_name", sa.String(100), nullable=False),
+        sa.Column("result", sa.String(30), nullable=False),
+        sa.Column("score", sa.Integer, server_default="0"),
+        sa.Column("reason", sa.Text),
+        sa.Column("created_at", sa.String(30), nullable=False),
+    )
+
 
 def downgrade() -> None:
+    op.drop_table("verification_results")
+    op.drop_table("stamp_tasks")
+    op.drop_table("leave_applications")
     op.drop_table("template_examples")
     op.drop_table("template_fields")
     op.drop_table("doc_templates")
