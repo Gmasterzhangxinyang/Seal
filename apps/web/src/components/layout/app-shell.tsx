@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
 import { CameraFeed } from '@/components/camera/camera-feed'
+import { ChatWidget } from '@/components/chat-widget'
 import { Sidebar } from './sidebar'
 
 export function AppShell() {
@@ -22,6 +23,7 @@ export function AppShell() {
       >
         <CameraFeed />
       </div>
+      <ChatWidget />
     </div>
   )
 }
