@@ -3,6 +3,25 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
 let _currentAudio: HTMLAudioElement | null = null
+let _audioUnlocked = false
+
+function unlockAudio() {
+  if (_audioUnlocked) return
+  try {
+    // 创建一个空的 AudioContext 并在用户手势中 resume，
+    // 浏览器会标记此页面为"用户已交互"，后续异步 audio.play() 才不会被拦截
+    const ctx = new AudioContext()
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(() => { _audioUnlocked = true; ctx.close() }).catch(() => ctx.close())
+    } else {
+      _audioUnlocked = true
+      ctx.close()
+    }
+  } catch {
+    // AudioContext not supported (extremely rare), just flag as unlocked
+    _audioUnlocked = true
+  }
+}
 
 function playAudioBlob(blob: Blob, label = 'audio') {
   _currentAudio?.pause()
@@ -49,6 +68,7 @@ export function VoiceControl() {
   const chunksRef = useRef<Blob[]>([])
 
   const startListening = useCallback(async () => {
+    unlockAudio()
     if (_currentAudio) { stopSpeaking(); setSpeaking(false) }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })

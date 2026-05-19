@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 const statusBadgeVariant: Record<string, 'warning' | 'success' | 'destructive' | 'info'> = {
@@ -51,7 +51,6 @@ export function ReviewPage() {
     refresh()
   }
 
-  const items = tab === 'pending' ? pending : allItems
 
   const statusLabel: Record<string, string> = {
     pending: t('statusPending'),
