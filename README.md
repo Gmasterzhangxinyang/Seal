@@ -1,67 +1,513 @@
-# 文档核验自动盖章机器人
+# MEC202 文档核验自动盖章机器人 — 软件原型使用文档
 
 > **课程项目 MEC202 · SPECIFIC GENERAL PROJECT 9**  
 > A robot server for self service of documentation  
 > 指导老师：Bangxiang Chen（Bangxiang.chen@xjtlu.edu.cn）  
-> 维护分支：`wene` · 最后更新：2026-05-16
+> 维护分支：`wene` · 版本 v1.0 · 最后更新：2026-05-19  
+> 访问地址：`http://110.42.229.174`
 
 ---
 
 ## 目录
 
-1. [项目简介](#1-项目简介)
-2. [远程部署架构](#2-远程部署架构)
-3. [系统架构（lxx 分支）](#3-系统架构lxx-分支)
-4. [完整机器流程](#4-完整机器流程)
-5. [功能清单](#5-功能清单)
-6. [硬件说明](#6-硬件说明)
-7. [软件环境与安装](#7-软件环境与安装)
-8. [快速启动](#8-快速启动)
-9. [远程连接方案](#9-远程连接方案)
-10. [部署与更新流程](#10-部署与更新流程)
-11. [Hermes 微信通知接入](#11-hermes-微信通知接入)
-12. [API 文档](#12-api-文档)
-13. [项目文件结构](#13-项目文件结构)
-14. [配置说明](#14-配置说明)
-15. [端口映射速查](#15-端口映射速查)
-16. [故障排查](#16-故障排查)
-17. [团队分工与时间线](#17-团队分工与时间线)
-18. [采购清单](#18-采购清单)
-19. [AI 开发助手（API 接入）](#19-ai-开发助手api-接入)
+**使用篇**
+1. [系统概述](#1-系统概述)
+2. [访问与登录](#2-访问与登录)
+3. [界面概览](#3-界面概览)
+4. [操作台：文档盖章](#4-操作台文档盖章)
+5. [请假申请管理](#5-请假申请管理)
+6. [人工复审](#6-人工复审)
+7. [模板管理](#7-模板管理)
+8. [审计日志](#8-审计日志)
+9. [用户管理](#9-用户管理)
+10. [机械臂标定](#10-机械臂标定)
+11. [语音控制](#11-语音控制)
+12. [统计面板](#12-统计面板)
+13. [常见问题](#13-常见问题)
+
+**技术篇**
+14. [系统架构](#14-系统架构)
+15. [OCR 方案：GLM-4V API 接入](#15-ocr-方案glm-4v-api-接入)
+16. [部署架构](#16-部署架构)
+17. [API 文档](#17-api-文档)
+18. [项目文件结构](#18-项目文件结构)
+19. [团队分工](#19-团队分工)
 
 ---
 
-## 1. 项目简介
+## 1. 系统概述
 
-本项目构建一个基于 WeArm 六自由度机械臂的**文档核验自动盖章系统**。用户将 A4 文档放入摄像头下方 → 系统 OCR 识别文档内容 → 按模板规则核验 → 审核通过后机械臂自动盖章 → 生成审计日志。对无法自动核验的文件，系统自动生成人工复审队列。
+本系统是一个**文档核验自动盖章机器人**，用于学校行政场景。核心能力：
 
-### 关键能力
+- **文档扫描与 OCR 识别**：摄像头拍照后通过 GLM-4V API 自动提取文档内容
+- **规则核验**：按模板规则自动验证文档字段（必填项、格式、类型等）
+- **机械臂自动盖章**：核验通过后 WeArm 六自由度机械臂自动定位盖章
+- **人工复审闭环**：自动核验失败的文件进入复审队列，管理员手动审批
+- **请假条全流程**：在线提交 → 审核员审批 → 下载含防伪二维码的 PDF → 打印 → 摄像头核验盖章
+- **审计追溯**：每次操作记录盖章前后照片、操作员、时间戳
 
-- **智能文档核验**：OCR 识别 + 规则引擎验证，支持自定义模板和字段提取
-- **机器人自动盖章**：WeArm 六自由度机械臂精准定位盖章
-- **审计追溯**：每次盖章生成结构化日志，含时间、操作员、文档类型、盖章前后照片
-- **人工复审闭环**：自动核验失败时创建复审队列，管理员可查看文档照片后批准/拒绝
-- **权限系统**：角色隔离（管理员、操作员、复审员），JWT/session 认证
-- **远程部署**：Nginx + WireGuard 实现公网访问与本地硬件分离
+### 用户角色与权限
 
-### 用户角色
-
-| 角色 | 职责 |
-|------|------|
-| 管理员 | 系统全局、管理用户、升级降级角色、查看全部日志 |
-| 操作员 | 日常盖章操作、提交文件扫描 |
-| 复审员 | 人工复审自动核验失败的文件 |
+| 角色 | 用户名 | 密码 | 可访问功能 |
+|------|--------|------|-----------|
+| **管理员** | `admin` | `admin123` | 全部功能：盖章、请假、复审、模板、用户管理、标定、统计 |
+| **操作员** | `operator` | `operator123` | 操作台盖章、提交请假申请、查看自己的申请 |
+| **复审员** | `reviewer` | `reviewer123` | 操作台盖章、审批请假、人工复审、查看审计日志 |
 
 ---
 
-## 2. 远程部署架构
+## 2. 访问与登录
+
+### 2.1 访问地址
+
+在浏览器中打开 `http://110.42.229.174` 即可进入系统登录页。
+
+### 2.2 登录
+
+1. 在登录页输入用户名和密码
+2. 点击 **登录** 按钮
+3. 登录成功后自动跳转到操作台首页
+
+### 2.3 注册
+
+系统支持邮箱注册。点击登录页的 **注册** 链接，填写用户名、邮箱、密码即可创建账号。新注册用户默认为操作员角色，需管理员手动升级。
+
+### 2.4 登出
+
+点击侧栏底部的登出图标即可退出登录。
+
+---
+
+## 3. 界面概览
+
+### 3.1 侧栏导航
+
+登录后页面左侧为导航侧栏。侧栏可折叠（点击左上角折叠按钮），折叠后仅显示图标。
+
+导航分为三组：
+
+| 分组 | 菜单项 | 权限 |
+|------|--------|------|
+| **常用** | 操作台、请假申请 | 所有人 |
+| **审核** | 审计日志、人工复审 | 管理员、复审员 |
+| **管理** | 模板管理、用户管理、统计面板、机械臂标定 | 仅管理员 |
+
+### 3.2 语言切换
+
+点击侧栏底部的 **English / 中文** 按钮可一键切换界面语言。中英文各有一套独立优化的文案和排版。
+
+### 3.3 连接状态指示
+
+侧栏顶部标题旁的圆点显示后端连接状态：
+- **绿色**：连接正常
+- **黄色闪烁**：正在重连
+- **红色**：连接断开
+
+### 3.4 页面布局
+
+- **操作台页面**：特殊宽屏布局，左侧为摄像头实时画面，右侧为操作面板
+- **其他页面**：标准居中布局，最大宽度 1200px
+
+---
+
+## 4. 操作台：文档盖章
+
+操作台是系统核心页面，位于首页（`/`）。提供**通用盖章**和**请假条盖章**两种模式。
+
+### 4.1 摄像头画面
+
+操作台显示 USB 摄像头的实时 MJPEG 视频流。将待盖章的 A4 文档平放在摄像头下方，调整位置使文档完整出现在画面中。
+
+### 4.2 通用文档盖章
+
+适用于非请假条的各类文档（证明、表格等），通过模板规则自动核验。
+
+**操作步骤：**
+
+1. 将文档放入摄像头下方
+2. 确认模式标签选中 **通用**
+3. 点击 **盖章** 按钮
+4. 系统自动：拍照 → GLM-4V OCR 识别 → 规则核验
+5. 核验通过 → 机械臂自动盖章 → 显示结果
+6. 核验失败 → 文档进入人工复审队列
+
+**结果反馈：**
+- ✅ **通过**：盖章成功，显示盖章前后照片
+- ⏳ **待复审**：核验存疑，已提交人工复审
+- ❌ **拒绝**：核验不通过，显示具体原因
+
+### 4.3 请假条盖章（SSE 流式）
+
+请假条盖章采用 SSE（Server-Sent Events）流式传输，前端实时显示每一步进展。
+
+**前置条件：** 请假申请已审批通过，PDF 已下载打印（见[第 5 章](#5-请假申请管理)）。
+
+**操作步骤：**
+
+1. 将打印好的纸质请假条（含二维码）放入摄像头下方
+2. 切换到 **请假** 模式
+3. 点击 **盖章** 按钮
+4. 系统 SSE 流式执行，实时显示：
+
+   ```
+   ① 拍照中…
+   ② 扫描二维码 → 解析 application_id
+   ③ GLM-4V 视觉识别 → 提取学号、姓名、日期等字段
+   ④ 10 项核验检查：
+      - 二维码签名验证（HMAC-SHA256）
+      - 申请记录存在性
+      - 状态校验（必须为 APPROVED）
+      - 重复盖章检测
+      - 学号/姓名/类型/日期一致性
+      - OCR 置信度评估
+   ⑤ 核验通过 → 机械臂盖章 → 状态更新为 STAMPED
+   ⑥ 核验存疑 → 进入人工复审队列
+   ```
+
+5. 流程结束后显示最终结果和盖章前后照片
+
+**核验规则说明：**
+
+系统执行 10 项检查，按风险分值累计决策：
+- 存在硬失败（签名无效、记录不存在、状态不对）→ **直接拒绝**
+- 风险分 ≥ 70 → **拒绝**
+- 风险分 40–69 → **人工复审**
+- 风险分 < 40 → **自动通过并盖章**
+
+---
+
+## 5. 请假申请管理
+
+请假申请是一套**线上审批 + 线下盖章**的完整闭环。
+
+### 5.1 请假列表（`/applications`）
+
+- **管理员/复审员**：查看所有请假申请
+- **操作员**：仅查看自己创建的申请
+
+列表显示每条申请的编号、学生姓名、请假类型、日期、状态。点击任意行进入详情。
+
+### 5.2 新建请假申请（`/applications/new`）
+
+任意登录用户均可提交。
+
+填写以下信息：
+- **学号** — 学生学号
+- **姓名** — 学生姓名
+- **院系** — 所属院系
+- **请假类型** — 病假 / 事假 / 其他
+- **开始日期** — 格式 YYYY-MM-DD
+- **结束日期** — 格式 YYYY-MM-DD
+- **请假原因** — 详细说明
+
+提交后状态为 `SUBMITTED`（等待审批）。
+
+### 5.3 审批（仅管理员/复审员）
+
+在请假申请详情页（`/applications/{id}`）：
+
+1. 审核申请内容
+2. 点击 **批准** 或 **拒绝**
+3. **批准后**：系统自动生成带 HMAC-SHA256 防伪签名的二维码，申请状态变为 `APPROVED`
+4. **拒绝后**：状态变为 `REJECTED`
+
+### 5.4 下载请假条 PDF
+
+审批通过后，详情页显示：
+- **二维码图片**：防篡改签名二维码
+- **下载 PDF 按钮**：点击下载含二维码的完整请假条 PDF
+
+将 PDF 打印为纸质版，即可带到盖章操作台进行物理盖章。
+
+### 5.5 状态流转
 
 ```
-用户浏览器 / 微信小程序
+SUBMITTED ──审批通过──→ APPROVED ──盖章成功──→ STAMPED
+     │                      │
+     └──拒绝──→ REJECTED    └──盖章失败──→ 复审队列
+```
+
+---
+
+## 6. 人工复审
+
+当自动核验无法确定时（OCR 置信度不足、字段部分匹配等），文档进入人工复审队列。
+
+### 6.1 访问权限
+
+仅**管理员**和**复审员**可访问。路径：`/review`。
+
+### 6.2 复审操作
+
+1. 切换到 **待处理** 标签页查看待复审项目
+2. 点击任意项目展开详情：
+   - 文档拍照图片
+   - OCR 提取的字段
+   - 各检查项的状态（通过/警告/失败）
+   - 失败原因
+3. 人工判断后点击 **批准** 或 **拒绝**
+4. 批准后系统触发盖章；拒绝后记录原因
+
+### 6.3 历史记录
+
+切换 **全部** 标签页可查看所有复审记录（已批准、已拒绝）。
+
+---
+
+## 7. 模板管理
+
+仅**管理员**可访问。路径：`/admin/templates`。
+
+### 7.1 模板列表
+
+展示所有已定义的文档模板，每行显示模板名称、文档类型、字段数量、更新时间。
+
+### 7.2 创建模板
+
+点击 **新建模板** 进入编辑页（`/admin/templates/new`）：
+
+1. 填写模板名称（如"请假条"、"成绩单"）
+2. 定义字段列表，每个字段包含：
+   - **字段名**：如 `student_id`、`name`
+   - **显示名**：中文标签，如"学号"
+   - **OCR 正则**：用于从 GLM-4V OCR 结果中提取该字段的正则表达式
+   - **必填**：是否为必填字段
+   - **验证规则**：类型检查（数字、日期、字符串等）
+3. 保存模板
+
+### 7.3 编辑与删除
+
+- 点击模板行进入编辑页修改
+- 点击删除按钮移除模板（需确认）
+
+### 7.4 导出
+
+每个模板支持导出为 JSON 文件，用于备份或迁移。
+
+---
+
+## 8. 审计日志
+
+仅**管理员**和**复审员**可访问。路径：`/logs`。
+
+列表展示每次盖章操作的完整记录：
+
+| 字段 | 说明 |
+|------|------|
+| 时间 | 操作时间戳 |
+| 操作员 | 执行盖章的用户 |
+| 文档类型 | 通用 / 请假条 |
+| 结果 | 通过 / 复审 / 拒绝 |
+| 盖章前照片 | 文档原始照片 |
+| 盖章后照片 | 盖章完成照片 |
+
+点击任意记录可查看详细信息，包括 OCR 识别结果和核验详情。
+
+---
+
+## 9. 用户管理
+
+仅**管理员**可访问。路径：`/admin/users`。
+
+### 9.1 用户列表
+
+显示所有注册用户，包含用户名、角色、注册时间。
+
+### 9.2 删除用户
+
+点击用户行的删除按钮即可移除账号（管理员不可删除自己）。
+
+### 9.3 角色管理
+
+用户的角色在注册时默认为 `operator`。如需变更角色，目前需在数据库层面操作。
+
+---
+
+## 10. 机械臂标定
+
+仅**管理员**可访问。路径：`/calibration`。
+
+标定页面用于调试和校准 WeArm 六自由度机械臂。
+
+### 10.1 单个舵机控制
+
+每个舵机（共 6 个）有独立的滑块，拖动滑块可实时控制舵机角度。PWM 值范围取决于机械臂配置。
+
+### 10.2 快速定位
+
+点击预设位置按钮，机械臂自动移动到目标姿态。
+
+### 10.3 四角标定
+
+1. 拖动滑块将机械臂末端移动到盖章区域的四个角
+2. 依次点击 **保存角1 / 角2 / 角3 / 角4**
+3. 系统根据四角位置计算盖章的插值坐标
+
+### 10.4 回零
+
+点击 **归零** 按钮，机械臂回到初始位置。
+
+---
+
+## 11. 语音控制
+
+操作台集成了语音控制功能（ASR + TTS）：
+
+- 点击麦克风按钮开始语音输入
+- 支持的语音指令：
+  - "盖章" — 触发盖章
+  - "请假模式" — 切换到请假条模式
+  - "通用模式" — 切换到通用文档模式
+- 系统通过语音合成（TTS）播报操作结果
+
+---
+
+## 12. 统计面板
+
+仅**管理员**可访问。路径：`/stats`。
+
+展示系统运行的关键指标：
+
+- 今日盖章总数
+- 通过率 / 复审率 / 拒绝率
+- 各文档类型的分布
+- 操作员工作量统计
+
+---
+
+## 13. 常见问题
+
+### Q1：点击盖章后无反应？
+
+检查侧栏标题旁的状态指示点。红色表示后端连接断开。检查：
+- 机器人机器是否开机
+- WireGuard VPN 是否连通（`ping 10.66.66.2`）
+- 后端 FastAPI 服务是否在运行
+
+### Q2：摄像头显示黑屏？
+
+- 确认摄像头 USB 已连接
+- 检查是否有其他程序占用摄像头
+- 刷新页面重试
+
+### Q3：请假条盖章时提示"二维码无效"？
+
+- 确认使用的是审批通过后下载的 PDF 打印版
+- 二维码必须清晰完整，未被遮挡或折损
+- 如果二维码模糊，尝试重新打印
+
+### Q4：OCR 识别率低？
+
+- 确保文档平放在摄像头下方，光线均匀
+- GLM-4V 对模糊图片的识别效果有限，建议使用清晰打印文档
+- 在模板管理中调整对应字段的 `ocr_pattern` 正则表达式
+- 手写文档目前识别率较低
+
+### Q5：如何查看盖章前后的照片？
+
+盖章成功后在操作台结果区域直接显示。也可在 **审计日志** 页面中查看历史操作。
+
+### Q6：操作员能看到复审队列吗？
+
+不能。复审队列仅对管理员和复审员可见。
+
+### Q7：中英文切换后部分文字未翻译？
+
+系统采用渐进式国际化。如发现未翻译的文案，请补充对应的 i18n 文件。
+
+---
+
+## 14. 系统架构
+
+### 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 前端 | React 19 + Vite + TypeScript + TailwindCSS + shadcn/ui + Zustand |
+| 后端 | FastAPI + SQLAlchemy + MySQL |
+| OCR | **GLM-4V API（智谱 AI）** — 远程 API 调用，非本地部署 |
+| 硬件 | WeArm 串口机械臂（ST3215 协议，6 舵机） |
+| 视觉 | OpenCV + 二维码扫描 |
+| 通知 | Hermes Agent Webhook → 飞书 / 微信 |
+| 构建 | Turborepo monorepo + pnpm workspace |
+
+### 数据流
+
+```
+摄像头拍照 → QR 扫描提取编号 → GLM-4V API 远程 OCR 识别字段
+  → 规则引擎验证（必填字段、类型、格式）
+  → [通过] → 机械臂盖章 → 保存审计日志
+  → [失败] → 创建人工复审队列 → 复审通过 → 盖章
+```
+
+### 完整机器流程
+
+```
+① 操作员将 A4 文件平放到摄像头下
+② 前端点击"盖章"
+③ 摄像头拍照，调用 GLM-4V API 识别文档内容
+④ 调用模板规则验证：
+   ✓ 自动通过 → 机械臂抓取印章、移动到位置、按压盖章
+   ✗ 自动拒绝 → 提交"人工复审"队列，审核员复核后二次处理
+⑤ 保存盖章前后照片和操作日志
+⑥ 操作员取走文件
+```
+
+---
+
+## 15. OCR 方案：GLM-4V API 接入
+
+### 为什么用 API 而非本地模型？
+
+系统使用**智谱 AI 的 GLM-4V 多模态大模型 API** 进行文档 OCR 识别，而非本地部署视觉模型。原因：
+
+- 机器人机器（Windows）算力有限，无法运行大规模 VLM
+- API 调用延迟可接受（通常 2-5 秒/次），满足盖章场景
+- GLM-4V 对中文文档的表格、字段识别效果优于 PaddleOCR
+- 无需维护本地 GPU 环境和模型更新
+
+### 配置方式
+
+在 `apps/backend/config.py` 中配置 GLM-4V 环境变量：
+
+```python
+VLM_API_KEY = os.getenv("VLM_API_KEY")       # 智谱 API Key
+VLM_BASE_URL = os.getenv("VLM_BASE_URL")     # https://open.bigmodel.cn/api/paas/v4
+VLM_MODEL = os.getenv("VLM_MODEL", "glm-4v") # 模型名称
+```
+
+或在 `.env` 文件中：
+
+```env
+VLM_API_KEY=your-zhipu-api-key
+VLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+VLM_MODEL=glm-4v
+```
+
+### 调用流程
+
+`apps/backend/vision/ocr.py` 封装了 GLM-4V API 调用：
+
+1. 摄像头拍照得到图片
+2. 图片转为 base64 编码
+3. 构造 prompt 发送到 GLM-4V API
+4. 解析返回的 JSON 提取字段
+5. 返回 `{字段名: 值, confidence: 置信度}` 字典
+
+### 备用方案
+
+系统中保留了 PaddleOCR 作为降级方案。当 GLM-4V API 不可用时，可切换至本地 PaddleOCR。切换方式见 `config.py` 中的 `OCR_BACKEND` 配置项。
+
+---
+
+## 16. 部署架构
+
+```
+用户浏览器
         │
         ▼
 ┌─────────────────────────────────────────┐
-│  云服务器 (XXXXXXX)               │
+│  云服务器 (110.42.229.174)              │
 │  Ubuntu 24.04                            │
 │                                          │
 │  Nginx :80                               │
@@ -92,400 +538,54 @@
 └─────────────────────────────────────────┘
 ```
 
----
+### 端口映射速查
 
-## 3. 系统架构（lxx 分支）
-
-### 技术栈
-
-| 层 | 技术 |
-|----|------|
-| 前端 | React 19 + Vite + TypeScript + TailwindCSS + shadcn/ui + Zustand |
-| 后端 | FastAPI + SQLAlchemy + MySQL |
-| OCR | GLM-4V（最新）/ PaddleOCR（备用） |
-| 硬件 | WeArm 串口机械臂 |
-| 视觉 | OpenCV + 二维码扫描 |
-| 通知 | Hermes Agent Webhook → 微信 |
-| 构建 | Turborepo monorepo + pnpm workspace |
-
-### 数据流
-
-```
-摄像头拍照 → QR 扫描提取编号 → GLM-4V OCR 识别字段
-  → 规则引擎验证（必填字段、类型、格式）
-  → [通过] → 机械臂盖章 → 保存审计日志
-  → [失败] → 创建人工复审队列 → 复审通过 → 盖章
-```
-
----
-
-## 4. 完整机器流程
-
-```
-① 操作员将 A4 文件平放到摄像头下
-② 前端点击"扫描文件"
-③ 摄像头拍照，OCR 识别文档内容
-④ 调用模板规则验证：
-   ✓ 自动通过 → 实时视频可见：机器人抓取印章、移动到位置、按压盖章
-   ✗ 自动拒绝 → 提交"人工复审"队列，审核员复核后二次处理
-⑤ 保存盖章前后照片和操作日志
-⑥ 操作员取走文件
-```
-
----
-
-## 5. 功能清单
-
-### 已完成
-
-- [x] React SPA + FastAPI 前后端分离
-- [x] JWT/Cookie 双认证 + 权限控制
-- [x] PaddleOCR（旧）→ GLM-4V（新）文档内容识别
-- [x] 二维码扫描提取编号
-- [x] 自定义模板系统 + 规则引擎
-- [x] 机械臂标定与逆运动学盖章
-- [x] 手柄示教 + 动作录制/回放
-- [x] MJPEG 实时视频流
-- [x] 审计日志 + 图片归档
-- [x] 人工复审工作流
-- [x] 请假条 SSL 流式盖章
-- [x] 语音控制（ASR + TTS）
-- [x] 远程部署（Nginx + WireGuard + SSE）
-
----
-
-## 6. 硬件说明
-
-### WeArm 机械臂（当前硬件）
-
-- 6 个串行总线舵机，基于 ST3215 协议（问读 7 字节、答 10 字节）
-- 串口连接，波特率 115200
-- 支持角度控制（0°–240°）和位置控制
-- 末端安装印章夹具
-
-### 摄像头
-
-- USB 免驱摄像头，1080P
-- 自动曝光、自动白平衡
-- 支持 MSMF/DSHOW 双后端自动适配（Windows）
-
----
-
-## 7. 软件环境与安装
-
-### 环境要求
-
-| 组件 | 版本 |
-|------|------|
-| Python | ≥ 3.11 |
-| Node.js | ≥ 18 |
-| pnpm | ≥ 9 |
-| MySQL | ≥ 8.0 |
-
-### 安装
-
-```bash
-git clone https://github.com/Gmasterzhangxinyang/MEC202
-cd MEC202
-
-# 前端
-pnpm install
-
-# 后端
-cd apps/backend
-pip install -r requirements.txt
-# 或使用 uv：uv sync
-
-# 数据库
-# 启动 MySQL，创建 stamp_robot 库
-alembic upgrade head
-```
-
----
-
-## 8. 快速启动
-
-### 方式一：Turborepo（推荐）
-
-```bash
-pnpm dev     # 同时启动前端 Vite + 后端 Uvicorn
-```
-
-### 方式二：手动启动
-
-```bash
-# 终端 1：后端
-cd apps/backend
-uvicorn main:app --host 0.0.0.0 --port 5001 --reload
-
-# 终端 2：前端
-cd apps/web
-pnpm dev
-```
-
-### 方式三：Windows 脚本
-
-```bat
-start_dev.bat
-```
-
-### 访问地址
-
-- 前端：http://127.0.0.1:5173
-- 后端 API：http://127.0.0.1:5001
-- Swagger 文档：http://127.0.0.1:5001/docs
-- 生产环境：http://XXXXXXX
-
-### 演示账号
-
-| 角色 | 用户名 | 密码 |
-|------|--------|------|
-| 管理员 | admin | admin123 |
-| 操作员 | operator | operator123 |
-| 复审员 | reviewer | reviewer123 |
-
----
-
-## 9. 远程连接方案
-
-### 9.1 WireGuard VPN 隧道
-
-**云服务器侧 (`/etc/wireguard/wg0.conf`)：**
-```ini
-[Interface]
-PrivateKey = <云服务器私钥>
-Address = 10.66.66.1/24
-ListenPort = 51820
-
-[Peer]
-PublicKey = <机器人机器公钥>
-AllowedIPs = 10.66.66.2/32
-```
-
-**机器人机器侧（Windows WireGuard 客户端）：**
-```ini
-[Interface]
-PrivateKey = <机器人机器私钥>
-Address = 10.66.66.2/24
-
-[Peer]
-PublicKey = <云服务器公钥>
-Endpoint = XXXXXXX:51820
-AllowedIPs = 10.66.66.0/24
-PersistentKeepalive = 25
-```
-
-```bash
-# 启动
-sudo wg-quick up wg0
-ping 10.66.66.2   # 验证连通
-```
-
-### 9.2 安全组（腾讯云控制台）
-
-| 端口 | 协议 | 方向 | 说明 |
+| 服务 | 位置 | 端口 | 说明 |
 |------|------|------|------|
-| 51820 | UDP | 入站 | WireGuard |
-| 80 | TCP | 入站 | HTTP 前端 |
-
-### 9.3 Nginx 反向代理
-
-配置文件：`/etc/nginx/sites-enabled/mec202`
-
-```nginx
-server {
-    listen 80;
-    server_name _;
-    root /var/www/mec202-web;
-    index index.html;
-
-    # React SPA
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # 通用 API 代理
-    location /api/ {
-        proxy_pass http://10.66.66.2:5001;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_connect_timeout 10s;
-        proxy_send_timeout 300s;
-        proxy_read_timeout 300s;
-    }
-
-    # SSE 流式盖章
-    location /api/stamp/leave {
-        proxy_pass http://10.66.66.2:5001;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_http_version 1.1;
-        proxy_buffering off;
-        proxy_read_timeout 300s;
-        chunked_transfer_encoding on;
-    }
-
-    # 视频流
-    location /video_feed {
-        proxy_pass http://10.66.66.2:5001;
-        proxy_http_version 1.1;
-        proxy_buffering off;
-        proxy_read_timeout 3600s;
-    }
-
-    location /api/cameras/video_feed {
-        proxy_pass http://10.66.66.2:5001;
-        proxy_http_version 1.1;
-        proxy_buffering off;
-        proxy_read_timeout 3600s;
-    }
-}
-```
+| Nginx 前端 | 云服务器 | 80 | 对外访问入口 |
+| FastAPI 后端 | 机器人机器 | 5001 | 经 WireGuard 代理 |
+| WireGuard | 云服务器 | 51820/UDP | VPN 隧道 |
+| Vite Dev | 本地 | 5173 | 开发热重载 |
 
 ---
 
-## 10. 部署与更新流程
+## 17. API 文档
 
-### 10.1 前端部署（云服务器）
+FastAPI 自动生成交互式文档：`http://127.0.0.1:5001/docs`
 
-```bash
-cd /home/ubuntu/MEC202
-git pull origin lxx
+### 主要接口
 
-cd apps/web
-pnpm install && pnpm build
-
-sudo cp dist/index.html /var/www/mec202-web/
-sudo cp -r dist/assets/* /var/www/mec202-web/assets/
-sudo nginx -s reload
-```
-
-### 10.2 后端更新（机器人机器）
-
-```bash
-cd MEC202
-git pull origin lxx
-pip install -r requirements.txt   # 或 uv sync
-# 检查 .env 配置
-# 重启后端: uvicorn main:app --host 0.0.0.0 --port 5001
-```
-
----
-
-## 11. Hermes 微信通知接入
-
-将 Hermes Agent 作为统一通知出口：审核/复审/盖章等事件 → Hermes Webhook → 微信通知。
-
-### 事件类型
-
-| 事件 | 触发时机 |
-|------|----------|
-| `REVIEW_CREATED` | 新的人工复审到达 |
-| `REVIEW_RESOLVED` | 复审已批准或拒绝 |
-| `AUDIT_APPROVED` | 自动审核通过并盖章 |
-| `AUDIT_REJECTED` | 自动审核拒绝 |
-| `STAMP_COMPLETED` | 盖章完成 |
-| `SYSTEM_ERROR` | 摄像头/OCR/机械臂异常 |
-
-### Hermes 侧配置
-
-```bash
-hermes gateway setup     # 启用 Webhooks + Weixin
-
-hermes webhook subscribe mec202-review \
-  --deliver weixin \
-  --deliver-only \
-  --prompt "【MEC202 盖章机器人】
-事件：{event} | 状态：{status} | 文档：{doc_type}
-操作员：{operator_id} | 复审ID：{review_id}
-时间：{timestamp}
-消息：{message}
-详情：{detail}" \
-  --description "MEC202 审核和复审通知"
-
-# 测试
-hermes webhook test mec202-review --payload '{
-  "event":"REVIEW_CREATED","status":"pending",
-  "doc_type":"leave","operator_id":"operator1",
-  "review_id":1,"message":"新的请假条需要人工复审",
-  "detail":"日期超过90天"
-}'
-```
-
-### MEC202 后端接入
-
-新增 `apps/backend/notification/hermes_client.py`：
-
-```python
-import logging, requests
-from datetime import datetime
-
-logger = logging.getLogger(__name__)
-
-def notify_event(event: str, **kwargs) -> bool:
-    from config import HERMES_NOTIFY_ENABLED, HERMES_WEBHOOK_URL
-    if not HERMES_NOTIFY_ENABLED or not HERMES_WEBHOOK_URL:
-        return False
-    payload = {'event': event, 'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'), **kwargs}
-    try:
-        r = requests.post(HERMES_WEBHOOK_URL, json=payload, timeout=2)
-        if r.status_code >= 400:
-            logger.warning('Hermes 通知失败: status=%s', r.status_code)
-            return False
-        return True
-    except Exception as e:
-        logger.warning('Hermes 通知异常: %s', e)
-        return False
-```
-
-在 `config.py` 中添加环境变量：
-```python
-HERMES_NOTIFY_ENABLED = os.getenv('HERMES_NOTIFY_ENABLED', 'false').lower() == 'true'
-HERMES_WEBHOOK_URL = os.getenv('HERMES_WEBHOOK_URL', '')
-```
-
-> ⚠️ 通知失败不能阻塞主业务流程。
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| POST | `/api/auth/login` | 登录 | 公开 |
+| POST | `/api/auth/register` | 邮箱注册 | 公开 |
+| GET | `/api/auth/me` | 当前用户信息 | 认证用户 |
+| POST | `/api/stamp` | 通用盖章 | 认证用户 |
+| POST | `/api/stamp/leave` | 请假条 SSE 流式盖章 | 认证用户 |
+| GET | `/api/cameras` | 摄像头列表 | 认证用户 |
+| GET | `/api/cameras/video_feed` | MJPEG 视频流 | 认证用户 |
+| GET | `/api/logs` | 审计日志 | admin/reviewer |
+| GET | `/api/review/pending` | 待复审列表 | admin/reviewer |
+| POST | `/api/review/{id}/resolve` | 处理复审 | admin/reviewer |
+| GET/POST | `/api/templates` | 模板列表/创建 | admin |
+| PUT/DELETE | `/api/templates/{id}` | 更新/删除模板 | admin |
+| GET | `/api/leave-applications` | 请假申请列表 | 认证用户 |
+| POST | `/api/leave-applications` | 创建请假申请 | 认证用户 |
+| POST | `/api/leave-applications/{id}/approve` | 审批通过 | admin/reviewer |
+| POST | `/api/leave-applications/{id}/reject` | 审批拒绝 | admin/reviewer |
+| GET | `/api/leave-applications/{id}/download` | 下载 PDF | 认证用户 |
+| GET | `/api/stats/data` | 统计数据 | admin |
+| POST | `/api/calibration/move_single` | 舵机控制 | admin |
+| GET | `/api/calibration/config` | 标定配置 | admin |
+| POST | `/api/voice/chat` | 语音控制 | 认证用户 |
+| POST | `/api/voice/asr` | 语音识别 | 认证用户 |
+| POST | `/api/voice/tts` | 语音合成 | 认证用户 |
+| GET | `/api/users` | 用户列表 | admin |
+| DELETE | `/api/users/{username}` | 删除用户 | admin |
 
 ---
 
-## 12. API 文档
-
-FastAPI 自动生成交互式文档：http://127.0.0.1:5001/docs
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/auth/login` | 登录 |
-| POST | `/api/auth/register` | 邮箱注册 |
-| POST | `/api/auth/logout` | 登出 |
-| GET | `/api/auth/me` | 当前用户 |
-| GET | `/api/users` | 用户列表（管理员） |
-| DELETE | `/api/users/{username}` | 删除用户（管理员） |
-| POST | `/api/stamp` | 触发盖章 |
-| POST | `/api/stamp/leave` | SSE 流式盖章 |
-| GET | `/api/cameras` | 摄像头列表 |
-| GET | `/api/cameras/video_feed` | MJPEG 视频流 |
-| GET | `/api/logs` | 审计日志 |
-| GET | `/api/review/pending` | 待复审列表 |
-| POST | `/api/review/{id}/resolve` | 处理复审 |
-| GET | `/api/templates` | 模板列表 |
-| POST | `/api/templates` | 创建模板 |
-| PUT | `/api/templates/{id}` | 更新模板 |
-| DELETE | `/api/templates/{id}` | 删除模板 |
-| GET | `/api/templates/{id}/export` | 导出模板 JSON |
-| GET | `/api/stats/data` | 统计数据 |
-| POST | `/api/calibration/move_single` | 舵机控制 |
-| GET | `/api/calibration/config` | 标定配置 |
-| POST | `/api/voice/chat` | 语音控制 |
-| POST | `/api/voice/asr` | 语音识别 |
-| POST | `/api/voice/tts` | 语音合成 |
-
----
-
-## 13. 项目文件结构
+## 18. 项目文件结构
 
 ```
 MEC202/
@@ -494,197 +594,43 @@ MEC202/
 │   │   ├── api/              # FastAPI 路由
 │   │   │   ├── main.py       # SPA 挂载 + 主要 API
 │   │   │   ├── stamp.py      # 盖章流程 + SSE 流式
+│   │   │   ├── leave_applications.py  # 请假审批
 │   │   │   ├── voice.py      # 语音控制
 │   │   │   ├── review.py     # 人工复审
-│   │   │   ├── templates.py  # 模板 CRUD
-│   │   │   ├── calibration.py
-│   │   │   ├── logs.py
-│   │   │   ├── stats.py
-│   │   │   └── users.py
-│   │   ├── database/         # SQLAlchemy 模型 + 迁移
-│   │   ├── vision/           # OCR + QR + 摄像头
-│   │   ├── hardware/         # WeArm 控制
-│   │   ├── validator/        # 规则引擎
-│   │   ├── integration/      # 外部集成
-│   │   ├── config.py
+│   │   │   └── templates.py  # 模板 CRUD
+│   │   ├── database/         # SQLAlchemy 模型
+│   │   ├── vision/           # OCR (GLM-4V API) + QR + 摄像头
+│   │   ├── hardware/         # WeArm 机械臂控制
+│   │   ├── validator/        # 规则引擎 + 10 项核验
+│   │   ├── integration/      # 外部集成（DMS 等）
+│   │   ├── services/         # 通知服务
+│   │   ├── config.py         # 全局配置
 │   │   └── main.py           # 应用入口
 │   └── web/                  # React 前端
 │       └── src/
-│           ├── pages/
-│           ├── components/
-│           ├── stores/
-│           └── lib/
-├── doc/                      # 项目文档
+│           ├── pages/        # 页面组件
+│           ├── components/   # UI 组件
+│           ├── stores/       # Zustand 状态管理
+│           └── i18n/         # 中英文国际化
+├── docs/                     # 项目文档
+├── hardware/                 # 硬件规格文档
+├── simulation/               # 机械臂仿真
 ├── pnpm-workspace.yaml
 └── turbo.json
 ```
 
 ---
 
-## 14. 配置说明
-
-`apps/backend/config.py` 关键配置：
-
-```python
-ARM_TYPE = 'wearm'            # 机械臂类型
-SIMULATION_MODE = False       # 仿真模式（无硬件时 True）
-
-# 摄像头和串口自动检测，无需手动
-# 如需手动指定：
-# CAMERA_INDEX = 2
-# SERIAL_PORT = 'COM9'
-
-# 数据库
-DB_HOST = 'localhost'
-DB_PORT = 3306
-```
-
----
-
-## 15. 端口映射速查
-
-| 服务 | 位置 | 端口 | 说明 |
-|------|------|------|------|
-| Nginx 前端 | 云服务器 | 80 | 对外访问入口 |
-| FastAPI 后端 | 机器人机器 | 5001 | 经 WireGuard 代理 |
-| WireGuard | 云服务器 | 51820/UDP | VPN 隧道 |
-| Hermes Webhook | 云服务器 | 8644 | 内部通知 |
-| Vite Dev | 本地 | 5173 | 开发热重载 |
-
----
-
-## 16. 故障排查
-
-### 前端 502
-```bash
-ping 10.66.66.2                        # WireGuard 是否连通
-curl http://10.66.66.2:5001/api/health  # 后端是否运行
-sudo wg show                            # 检查 VPN 状态
-```
-
-### SSE 流式无响应
-确认 Nginx 中 `/api/stamp/leave` 包含：
-```nginx
-proxy_buffering off;
-proxy_http_version 1.1;
-chunked_transfer_encoding on;
-```
-
-### 视频流卡顿
-确认 `proxy_buffering off` + `proxy_read_timeout 3600s`。
-
-### 微信通知不送达
-```bash
-hermes webhook test mec202-review --payload '{...}'
-hermes gateway status
-```
-
-### 摄像头黑屏
-检查摄像头是否被其他程序占用。MSMF/DSHOW 自动适配已在 config.py 中实现。
-
-### 找不到机械臂串口
-系统自动检测 CH340 芯片。确认设备管理器中有 `USB-SERIAL CH340`。
-
-### OCR 识别率低
-在网页端 `模板管理` 中编辑对应模板的 `ocr_pattern` 正则。
-
----
-
-## 17. 团队分工与时间线
+## 19. 团队分工
 
 | 成员 | 负责模块 | 核心交付 |
 |------|---------|---------|
 | 硬件 | 框架搭建 + 机械臂调试 | 准确盖章，自动标定 |
-| 视觉 | OCR + 摄像头 + 分类 | 字段提取准确率 ≥ 90% |
-| 逻辑 | 验证规则 + 模板系统 | 模板 CRUD + 动态提取 |
-| 前端 | React SPA + API 对接 | 全功能页面，摄像头正常 |
+| 视觉 | OCR + 摄像头 + 分类 | GLM-4V API 接入，字段提取准确率 ≥ 90% |
+| 逻辑 | 验证规则 + 模板系统 | 模板 CRUD + 10 项核验 + 动态提取 |
+| 前端 | React SPA + API 对接 | 全功能页面，中英文双语，摄像头正常 |
 | 集成 | API 层 + 主流程 + 联调 | 全流程端到端跑通 |
 
-```
-Week 1  采购硬件 → 搭KT板框架 → 接线 + 环境搭建
-Week 2  OCR 真实表单测试 + 模板系统 + 机械臂调参
-Week 3  React SPA 完成 + FastAPI API 层完成
-Week 4  集体联调，全流程端到端测试
-Week 5  用真实表单反复测试，修 bug
-Week 6  演示准备，录制视频，撰写报告
-```
-
 ---
 
-## 18. 采购清单
-
-| # | 淘宝搜索词 | 规格 | 预估价 |
-|---|-----------|------|--------|
-| 1 | `Arduino Uno R3 开发板 官方兼容` | 套餐含USB线 | ~40¥ |
-| 2 | `MG996R 舵机 金属齿轮` | 1个 | ~25¥ |
-| 3 | `MG90S 微型舵机` | 1个 | ~15¥ |
-| 4 | `1080P USB摄像头 免驱 广角` | 免驱即插即用 | ~60¥ |
-| 5 | `光敏印章 自动回墨 定制刻字` | 刻"已审核"，直径4cm | ~25¥ |
-| 6 | `KT板 A3 白色 5mm` | 3-5张 | ~15¥ |
-| 7 | `热熔胶枪 套装` | 含胶棒 | ~20¥ |
-| 8 | `杜邦线 公对母 20cm 40根` | 1包 | ~8¥ |
-| | | **总计** | **~208¥** |
-
----
-
-*Turborepo Monorepo · Python FastAPI · React 19 · GLM-4V · WeArm · WireGuard*
-
----
-
-## 19. AI 开发助手（API 接入）
-
-云服务器上运行了一个 AI 编码助手，可通过 OpenAI 兼容 API 连接，帮助团队成员理解和修改服务端代码。
-
-### 连接信息
-
-```
-Base URL:  http：//URL
-API Key:   814988d70d320f23cf1dff306e9a8249abcfffaa39459a1f65486d1806522938
-Model:     deepseek-v4-pro
-```
-
-### 方式一：OpenAI 兼容客户端（推荐）
-
-支持 OpenWebUI、ChatBox、Continue (VS Code) 等任何兼容 OpenAI API 的工具。填入上面的 Base URL 和 API Key 即可。
-
-### 方式二：curl
-
-```bash
-curl -X POST http：//URL \
-  -H "Authorization: Bearer XXXXXXXXXXX" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "deepseek-v4-pro",
-    "messages": [{"role": "user", "content": "帮我看看 backend/main.py 的路由结构"}]
-  }'
-```
-
-### 方式三：Python
-
-```python
-import requests
-
-resp = requests.post(
-    "http：//URL",
-    headers={"Authorization": "Bearer XXXXXXXXX"},
-    json={
-        "model": "deepseek-v4-pro",
-        "messages": [{"role": "user", "content": "解释 kinematics.py 里的逆运动学实现"}]
-    }
-)
-print(resp.json()["choices"][0]["message"]["content"])
-```
-
-### 能力范围
-
-- 阅读和解释 MEC202 源代码
-- 搜索文件、函数和代码模式
-- 帮助调试构建错误和配置问题
-- 解释项目架构、API 端点和部署设置
-- 修改 `/home/ubuntu/MEC202/` 下的服务端文件
-
-### 限制
-
-- 仅回答 MEC202 项目相关问题
-- 文件操作限定在 `/home/ubuntu/MEC202/` 内
-- 非项目问题会被拒绝回复
+*Turborepo Monorepo · React 19 · FastAPI · GLM-4V API · WeArm · WireGuard*
