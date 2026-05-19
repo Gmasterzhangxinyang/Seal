@@ -186,4 +186,4 @@ DIFY_VOICE_TTS_APP_ID = "app-zyiT0PYF7fFDhhXeWZzUsc4N"   # voice.yml TTS 工作�
 # ─── Aurora Chat Assistant ────────────────────────────────────────────────────
 AURORA_CHAT_URL = os.environ.get("AURORA_CHAT_URL", "http://127.0.0.1:7000/chat")
 AURORA_API_KEY = os.environ.get("AURORA_API_KEY", "")
-AURORA_TIMEOUT_SECONDS = float(os.environ.get("AURORA_TIMEOUT_SECONDS", "30"))
+AURORA_TIMEOUT_SECONDS = float(os.environ.get("AURORA_TIMEOUT_SECONDS", "90"))
