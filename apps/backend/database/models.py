@@ -138,6 +138,7 @@ class LeaveApplication(Base):
     created_by: Mapped[str | None] = mapped_column(String(50))
     created_at: Mapped[str] = mapped_column(String(30), nullable=False)
     updated_at: Mapped[str] = mapped_column(String(30), nullable=False)
+    ai_comment: Mapped[str | None] = mapped_column(String(500))
 
 
 class StampTask(Base):

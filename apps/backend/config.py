@@ -177,3 +177,6 @@ FISH_AUDIO_API_KEY = os.environ.get("FISH_AUDIO_API_KEY", "")
 
 # ─── DashScope ASR ────────────────────────────────────────────────────────────
 DASHSCOPE_API_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
+
+# ─── Dify AI 审批 ──────────────────────────────────────────────────────────────
+DIFY_API_KEY = os.environ.get("DIFY_API_KEY", "app-YLvNXsCxer7Q5VKS0bsjdmit")

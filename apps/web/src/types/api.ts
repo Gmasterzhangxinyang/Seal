@@ -135,6 +135,7 @@ export interface LeaveApplication {
   stamped_at: string | null
   created_at: string
   updated_at: string
+  ai_comment: string | null
 }
 
 export interface LeaveVerificationResult {

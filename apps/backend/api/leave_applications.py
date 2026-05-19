@@ -46,11 +46,33 @@ def _generate_application_id() -> str:
 def create_leave_application(
     body: CreateLeaveApplicationRequest, session: dict = Depends(get_session)
 ):
-    """创建请假申请"""
+    """创建请假申请，自动调用 Dify AI 审批"""
     application_id = _generate_application_id()
     now = datetime.now().isoformat()
     qr_payload = create_leave_qr_payload(application_id, body.student_id)
     qr_content = qr_payload_to_string(qr_payload)
+
+    # 调用 Dify AI 审批
+    from utils.dify_client import call_dify_approval
+
+    ai_result = call_dify_approval(body.start_date, body.end_date, body.reason)
+    approval_result = ai_result.get("approval_result")
+    ai_comment = ai_result.get("comment", "")
+
+    # 根据 AI 审批结果设置状态
+    if approval_result == "Approved":
+        status = "APPROVED"
+        approved_by = "AI_AUTO"
+        approved_at = now
+    elif approval_result == "Rejected":
+        status = "REJECTED"
+        approved_by = "AI_AUTO"
+        approved_at = now
+    else:
+        # Pending Review 或无法获取结果时保持 SUBMITTED
+        status = "SUBMITTED"
+        approved_by = None
+        approved_at = None
 
     with get_db() as conn:
         from sqlalchemy import text
@@ -59,10 +81,12 @@ def create_leave_application(
             text("""
             INSERT INTO leave_applications
             (application_id, student_id, student_name, dept, leave_type,
-             start_date, end_date, reason, status, qr_content, created_by, created_at, updated_at)
+             start_date, end_date, reason, status, qr_content, created_by,
+             created_at, updated_at, approved_by, approved_at, ai_comment)
             VALUES
             (:application_id, :student_id, :student_name, :dept, :leave_type,
-             :start_date, :end_date, :reason, 'SUBMITTED', :qr_content, :created_by, :created_at, :updated_at)
+             :start_date, :end_date, :reason, :status, :qr_content, :created_by,
+             :created_at, :updated_at, :approved_by, :approved_at, :ai_comment)
         """),
             {
                 "application_id": application_id,
@@ -73,18 +97,24 @@ def create_leave_application(
                 "start_date": body.start_date,
                 "end_date": body.end_date,
                 "reason": body.reason,
+                "status": status,
                 "qr_content": qr_content,
                 "created_by": session["username"],
                 "created_at": now,
                 "updated_at": now,
+                "approved_by": approved_by,
+                "approved_at": approved_at,
+                "ai_comment": ai_comment,
             },
         )
 
-    logger.info(f"[leave] 创建申请 {application_id} by {session['username']}")
+    logger.info(f"[leave] 创建申请 {application_id} by {session['username']}, AI审批: {approval_result}")
     return {
         "application_id": application_id,
-        "status": "SUBMITTED",
+        "status": status,
         "qr_content": qr_content,
+        "ai_comment": ai_comment,
+        "approval_result": approval_result,
     }
 
 

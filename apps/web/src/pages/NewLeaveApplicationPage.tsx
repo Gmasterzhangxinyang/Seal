@@ -48,7 +48,7 @@ export function NewLeaveApplicationPage() {
     <div>
       <PageHeader title={t('newLeaveApplication')} />
 
-      <Card className="max-w-xl mx-auto">
+      <Card className="max-w-xl mx-auto pt-6">
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">

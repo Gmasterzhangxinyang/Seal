@@ -40,5 +40,6 @@
   "createdTime": "创建时间",
   "approveBtn": "审批通过",
   "submitted": "已提交",
-  "status": "状态"
+  "status": "状态",
+  "aiApprovalComment": "AI 审批意见"
 }

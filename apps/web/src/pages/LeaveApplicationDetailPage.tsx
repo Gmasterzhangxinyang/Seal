@@ -70,7 +70,7 @@ export function LeaveApplicationDetailPage() {
         }
       />
 
-      <Card className="max-w-2xl">
+      <Card className="max-w-2xl pt-6">
         <CardContent>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -145,11 +145,18 @@ export function LeaveApplicationDetailPage() {
             )}
 
             <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground border-t border-border pt-4">
-              {app.approved_by && <div>{t('approver')}:{app.approved_by}</div>}
+              {app.approved_by && <div>{t('approver')}: {app.approved_by}</div>}
               {app.approved_at && <div>{t('approvalTime')}: {app.approved_at}</div>}
               {app.stamped_at && <div>{t('stampTime')}: {app.stamped_at}</div>}
               <div>{t('createdTime')}: {app.created_at}</div>
             </div>
+
+            {app.ai_comment && (
+              <div className="border-t border-border pt-4">
+                <span className="text-sm text-muted-foreground">{t('aiApprovalComment')}：</span>
+                <p className="mt-1 p-3 bg-muted rounded text-sm">{app.ai_comment}</p>
+              </div>
+            )}
 
             {app.status === 'SUBMITTED' && canApprove && (
               <div className="flex gap-3 pt-4 border-t border-border">

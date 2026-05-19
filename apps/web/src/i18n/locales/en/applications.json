@@ -40,5 +40,6 @@
   "createdTime": "Created Time",
   "approveBtn": "Approve",
   "submitted": "Submitted",
-  "status": "Status"
+  "status": "Status",
+  "aiApprovalComment": "AI Approval Comment"
 }
