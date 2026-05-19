@@ -61,7 +61,7 @@
         │
         ▼
 ┌─────────────────────────────────────────┐
-│  云服务器 (110.42.229.174)               │
+│  云服务器 (XXXXXXX)               │
 │  Ubuntu 24.04                            │
 │                                          │
 │  Nginx :80                               │
@@ -234,7 +234,7 @@ start_dev.bat
 - 前端：http://127.0.0.1:5173
 - 后端 API：http://127.0.0.1:5001
 - Swagger 文档：http://127.0.0.1:5001/docs
-- 生产环境：http://110.42.229.174
+- 生产环境：http://XXXXXXX
 
 ### 演示账号
 
@@ -270,7 +270,7 @@ Address = 10.66.66.2/24
 
 [Peer]
 PublicKey = <云服务器公钥>
-Endpoint = 110.42.229.174:51820
+Endpoint = XXXXXXX:51820
 AllowedIPs = 10.66.66.0/24
 PersistentKeepalive = 25
 ```
@@ -638,7 +638,7 @@ Week 6  演示准备，录制视频，撰写报告
 ### 连接信息
 
 ```
-Base URL:  http://110.42.229.174:8001/v1
+Base URL:  http：//URL
 API Key:   814988d70d320f23cf1dff306e9a8249abcfffaa39459a1f65486d1806522938
 Model:     deepseek-v4-pro
 ```
@@ -650,8 +650,8 @@ Model:     deepseek-v4-pro
 ### 方式二：curl
 
 ```bash
-curl -X POST http://110.42.229.174:8001/v1/chat/completions \
-  -H "Authorization: Bearer 814988d70d320f23cf1dff306e9a8249abcfffaa39459a1f65486d1806522938" \
+curl -X POST http：//URL \
+  -H "Authorization: Bearer XXXXXXXXXXX" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "deepseek-v4-pro",
@@ -665,8 +665,8 @@ curl -X POST http://110.42.229.174:8001/v1/chat/completions \
 import requests
 
 resp = requests.post(
-    "http://110.42.229.174:8001/v1/chat/completions",
-    headers={"Authorization": "Bearer 814988d70d320f23cf1dff306e9a8249abcfffaa39459a1f65486d1806522938"},
+    "http：//URL",
+    headers={"Authorization": "Bearer XXXXXXXXX"},
     json={
         "model": "deepseek-v4-pro",
         "messages": [{"role": "user", "content": "解释 kinematics.py 里的逆运动学实现"}]
