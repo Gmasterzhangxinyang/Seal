@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MessageCircle, Send, X } from 'lucide-react'
 import { apiPost } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -13,13 +14,26 @@ interface ChatResponse {
 }
 
 export function ChatWidget() {
+  const { t } = useTranslation('chat')
+  const greeting = t('greeting')
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'assistant', content: '你好！我是 MEC202 系统助手，有什么可以帮你？' },
+    { role: 'assistant', content: greeting },
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  // keep the greeting in sync when language changes mid-session
+  useEffect(() => {
+    setMessages((prev) =>
+      prev.length === 1 && prev[0].role === 'assistant'
+        ? [{ role: 'assistant', content: greeting }]
+        : prev.map((msg, i) =>
+            i === 0 && msg.role === 'assistant' ? { ...msg, content: greeting } : msg,
+          ),
+    )
+  }, [greeting])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -39,7 +53,7 @@ export function ChatWidget() {
     } catch {
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: '智能助手暂时不可用，请稍后重试。' },
+        { role: 'assistant', content: t('error') },
       ])
     } finally {
       setLoading(false)
@@ -51,12 +65,12 @@ export function ChatWidget() {
       {open && (
         <div className="flex h-[420px] w-80 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
           <div className="flex items-center justify-between bg-primary px-4 py-3 text-primary-foreground">
-            <span className="text-sm font-medium">系统助手</span>
+            <span className="text-sm font-medium">{t('title')}</span>
             <button
               type="button"
               onClick={() => setOpen(false)}
               className="rounded-md p-1 hover:bg-primary-foreground/10"
-              aria-label="关闭系统助手"
+              aria-label={t('close')}
             >
               <X size={16} />
             </button>
@@ -84,7 +98,7 @@ export function ChatWidget() {
             {loading && (
               <div className="flex justify-start">
                 <div className="rounded-xl rounded-bl-none bg-muted px-3 py-2 text-muted-foreground">
-                  思考中…
+                  {t('thinking')}
                 </div>
               </div>
             )}
@@ -94,7 +108,7 @@ export function ChatWidget() {
           <div className="flex items-center gap-2 border-t border-border p-3">
             <input
               className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary"
-              placeholder="输入问题…"
+              placeholder={t('placeholder')}
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => {
@@ -106,7 +120,7 @@ export function ChatWidget() {
               onClick={send}
               disabled={loading || !input.trim()}
               className="rounded-lg bg-primary p-2 text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="发送消息"
+              aria-label={t('send')}
             >
               <Send size={16} />
             </button>
@@ -118,7 +132,7 @@ export function ChatWidget() {
         type="button"
         onClick={() => setOpen((value) => !value)}
         className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105"
-        aria-label="打开系统助手"
+        aria-label={t('open')}
       >
         <MessageCircle size={22} />
       </button>

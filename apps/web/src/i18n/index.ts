@@ -11,6 +11,7 @@ import zhReview from './locales/zh/review.json'
 import zhAdmin from './locales/zh/admin.json'
 import zhApplications from './locales/zh/applications.json'
 import zhCalibration from './locales/zh/calibration.json'
+import zhChat from './locales/zh/chat.json'
 
 import enCommon from './locales/en/common.json'
 import enNav from './locales/en/nav.json'
@@ -21,6 +22,7 @@ import enReview from './locales/en/review.json'
 import enAdmin from './locales/en/admin.json'
 import enApplications from './locales/en/applications.json'
 import enCalibration from './locales/en/calibration.json'
+import enChat from './locales/en/chat.json'
 
 i18n
   .use(LanguageDetector)
@@ -37,6 +39,7 @@ i18n
         admin: zhAdmin,
         applications: zhApplications,
         calibration: zhCalibration,
+        chat: zhChat,
       },
       en: {
         common: enCommon,
@@ -48,11 +51,12 @@ i18n
         admin: enAdmin,
         applications: enApplications,
         calibration: enCalibration,
+        chat: enChat,
       },
     },
     fallbackLng: 'zh',
     defaultNS: 'common',
-    ns: ['common', 'nav', 'auth', 'stamp', 'logs', 'review', 'admin', 'applications', 'calibration'],
+    ns: ['common', 'nav', 'auth', 'stamp', 'logs', 'review', 'admin', 'applications', 'calibration', 'chat'],
     interpolation: {
       escapeValue: false,
     },
