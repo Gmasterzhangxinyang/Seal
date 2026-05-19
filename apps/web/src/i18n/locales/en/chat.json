@@ -1,0 +1,10 @@
+{
+  "greeting": "Hi! I'm the MEC202 system assistant. How can I help you?",
+  "title": "System Assistant",
+  "placeholder": "Type a message...",
+  "thinking": "Thinking...",
+  "error": "Assistant is temporarily unavailable. Please try again later.",
+  "close": "Close assistant",
+  "open": "Open assistant",
+  "send": "Send message"
+}
