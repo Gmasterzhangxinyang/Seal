@@ -1,12 +1,21 @@
 import { useState, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { apiPost } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 
 let _currentAudio: HTMLAudioElement | null = null
 
+function playAudioBlob(blob: Blob, label = 'audio') {
+  _currentAudio?.pause()
+  _currentAudio = null
+  const url = URL.createObjectURL(blob)
+  const audio = new Audio(url)
+  _currentAudio = audio
+  audio.onended = () => { URL.revokeObjectURL(url); _currentAudio = null; console.log(`[voice] ${label} played OK`) }
+  audio.onerror = (e) => { URL.revokeObjectURL(url); _currentAudio = null; console.error(`[voice] ${label} play error:`, e) }
+  audio.play().catch(e => { console.error(`[voice] ${label} play() rejected:`, e); _currentAudio = null })
+}
+
 async function speak(text: string) {
-  stopSpeaking()
   try {
     const res = await fetch('/api/voice/tts', {
       method: 'POST',
@@ -14,15 +23,12 @@ async function speak(text: string) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
     })
-    if (!res.ok) return
+    if (!res.ok) { console.error(`[voice] /tts HTTP ${res.status}`); return }
     const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const audio = new Audio(url)
-    _currentAudio = audio
-    audio.onended = () => { URL.revokeObjectURL(url); _currentAudio = null }
-    audio.onerror = () => { URL.revokeObjectURL(url); _currentAudio = null }
-    audio.play()
-  } catch {
+    if (blob.size === 0) { console.error('[voice] /tts returned empty blob'); return }
+    playAudioBlob(blob, '/tts')
+  } catch (e) {
+    console.error('[voice] speak() error:', e)
     _currentAudio = null
   }
 }
@@ -31,8 +37,6 @@ function stopSpeaking() {
   _currentAudio?.pause()
   _currentAudio = null
 }
-
-let _sessionId = `voice-${Date.now()}`
 
 export function VoiceControl() {
   const { t } = useTranslation('stamp')
@@ -43,35 +47,6 @@ export function VoiceControl() {
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
-
-  const sendCommand = useCallback(async (text: string) => {
-    if (!text.trim()) return
-    setProcessing(true)
-    setLogs((prev) => [...prev, `> ${text}`])
-    try {
-      const res = await apiPost<{
-        reply: string
-        action: string | null
-        action_description: string | null
-      }>('/voice/chat', { session_id: _sessionId, text })
-
-      setLogs((prev) => {
-        const next = [...prev]
-        if (res.action_description) next.push(`  [${res.action_description}]`)
-        if (res.reply) next.push(`  ${res.reply}`)
-        return next
-      })
-
-      if (res.reply) {
-        setSpeaking(true)
-        speak(res.reply)
-      }
-    } catch {
-      setLogs((prev) => [...prev, `  ! ${t('processFailed')}`])
-    } finally {
-      setProcessing(false)
-    }
-  }, [t])
 
   const startListening = useCallback(async () => {
     if (_currentAudio) { stopSpeaking(); setSpeaking(false) }
@@ -90,28 +65,50 @@ export function VoiceControl() {
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
 
       recorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: mimeType })
+        const webmBlob = new Blob(chunksRef.current, { type: mimeType })
         stream.getTracks().forEach(t => t.stop())
         setProcessing(true)
+        setSpeaking(false)
         try {
-          const res = await fetch('/api/voice/asr', { method: 'POST', credentials: 'include', body: blob })
-          if (!res.ok) throw new Error('ASR failed')
-          const data = await res.json() as { text: string }
-          if (data.text?.trim()) sendCommand(data.text)
-          else setProcessing(false)
-        } catch {
-          setLogs((prev) => [...prev, `  ! ${t('voiceRecognitionFailed')}`])
+          const formData = new FormData()
+          formData.append('audio', webmBlob, 'voice.webm')
+          const res = await fetch('/api/voice/chat', { method: 'POST', credentials: 'include', body: formData })
+          if (!res.ok) {
+            const text = await res.text()
+            throw new Error(`HTTP ${res.status}: ${text}`)
+          }
+          const data = await res.json() as { tool_id?: number; comment?: string; audio?: string }
+          const text = data.comment || ''
+          setLogs(prev => [...prev, `> ${text}`])
+          setSpeaking(true)
+          if (data.audio) {
+            // 后端返回了 TTS 音频（base64），直接播放
+            try {
+              const blob = new Blob([Uint8Array.from(atob(data.audio), c => c.charCodeAt(0))], { type: 'audio/wav' })
+              playAudioBlob(blob, 'cached')
+            } catch (e) {
+              console.error('[voice] base64 decode error:', e)
+              await speak(text)
+            }
+          } else if (text) {
+            await speak(text)
+          }
+          setSpeaking(false)
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          setLogs(prev => [...prev, `  ! ${t('voiceRecognitionFailed')}: ${msg}`])
+        } finally {
           setProcessing(false)
         }
       }
 
       recorder.start()
       setListening(true)
-      setLogs((prev) => [...prev, `> ${t('recording')}`])
+      setLogs(prev => [...prev, `> ${t('recording')}`])
     } catch {
-      setLogs((prev) => [...prev, `  ! ${t('noMicrophoneAccess')}`])
+      setLogs(prev => [...prev, `  ! ${t('noMicrophoneAccess')}`])
     }
-  }, [sendCommand, t])
+  }, [t])
 
   const stopListening = () => {
     if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop()
