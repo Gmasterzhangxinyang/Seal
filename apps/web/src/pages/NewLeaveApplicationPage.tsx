@@ -18,7 +18,7 @@ export function NewLeaveApplicationPage() {
     student_id: '',
     student_name: '',
     dept: '',
-    leave_type: '\u75c5\u5047',
+    leave_type: '病假',
     start_date: '',
     end_date: '',
     reason: '',
@@ -100,13 +100,13 @@ export function NewLeaveApplicationPage() {
                 onChange={handleChange}
                 required
               >
-                <option value="\u75c5\u5047">{t('sickLeave')}</option>
-                <option value="\u4e8b\u5047">{t('personalLeave')}</option>
-                <option value="\u5a5a\u5047">{t('marriageLeave')}</option>
-                <option value="\u4ea7\u5047">{t('maternityLeave')}</option>
-                <option value="\u4e27\u5047">{t('bereavementLeave')}</option>
-                <option value="\u516c\u5047">{t('officialLeave')}</option>
-                <option value="\u5176\u4ed6">{t('other')}</option>
+                <option value="病假">{t('sickLeave')}</option>
+                <option value="事假">{t('personalLeave')}</option>
+                <option value="婚假">{t('marriageLeave')}</option>
+                <option value="产假">{t('maternityLeave')}</option>
+                <option value="丧假">{t('bereavementLeave')}</option>
+                <option value="公假">{t('officialLeave')}</option>
+                <option value="其他">{t('other')}</option>
               </Select>
             </div>
 

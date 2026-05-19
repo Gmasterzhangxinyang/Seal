@@ -10,6 +10,15 @@ from utils.qr_sign import create_leave_qr_payload, qr_payload_to_string
 router = APIRouter(prefix="/leave-applications", tags=["leave-applications"])
 logger = logging.getLogger(__name__)
 
+import re as _re
+
+_UNICODE_ESCAPES = _re.compile(r'\\u([0-9a-fA-F]{4})')
+
+def _decode_unicode_escapes(s: str) -> str:
+    if '\\u' not in s:
+        return s
+    return _UNICODE_ESCAPES.sub(lambda m: chr(int(m.group(1), 16)), s)
+
 
 class CreateLeaveApplicationRequest(BaseModel):
     student_id: str
@@ -439,7 +448,7 @@ def download_leave_application(
         ],
         [
             Paragraph("<b>请假类型</b>", small_style),
-            Paragraph(app["leave_type"], body_style),
+            Paragraph(_decode_unicode_escapes(app["leave_type"]), body_style),
         ],
         [
             Paragraph("<b>开始日期</b>", small_style),

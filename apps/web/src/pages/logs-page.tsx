@@ -112,7 +112,7 @@ export function LogsPage() {
                   >
                     <TableCell>{log.timestamp}</TableCell>
                     <TableCell>{log.operator_id}</TableCell>
-                    <TableCell>{log.doc_type_name}</TableCell>
+                    <TableCell>{t(`docType.${log.doc_type}`) || log.doc_type_name}</TableCell>
                     <TableCell>
                       <Badge variant={resultBadgeVariant[log.result] || 'default'}>
                         {resultLabel[log.result] || log.result}

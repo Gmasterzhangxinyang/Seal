@@ -19,6 +19,15 @@ import {
   TableCell,
 } from '@/components/ui/table'
 
+const leaveTypeI18nKey: Record<string, string> = {
+  '病假': 'sickLeave',
+  '事假': 'personalLeave',
+  '婚假': 'marriageLeave',
+  '产假': 'maternityLeave',
+  '丧假': 'bereavementLeave',
+  '公假': 'officialLeave',
+}
+
 const statusBadgeVariant: Record<string, 'warning' | 'success' | 'destructive' | 'info' | 'default'> = {
   SUBMITTED: 'warning',
   APPROVED: 'success',
@@ -117,7 +126,7 @@ export function LeaveApplicationsPage() {
                 <TableCell className="font-mono text-xs">{app.application_id}</TableCell>
                 <TableCell>{app.student_name}</TableCell>
                 <TableCell>{app.student_id}</TableCell>
-                <TableCell>{app.leave_type}</TableCell>
+                <TableCell>{t(leaveTypeI18nKey[app.leave_type] || 'other')}</TableCell>
                 <TableCell>{app.start_date}</TableCell>
                 <TableCell>{app.end_date}</TableCell>
                 <TableCell>
