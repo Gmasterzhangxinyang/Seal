@@ -162,7 +162,7 @@ def cal_home(session: dict = Depends(require_role("admin"))):
     from hardware.wearm import PWM_MID
 
     arm = get_arm()
-    arm.move_to({i: PWM_MID for i in range(6)}, 1000)
+    arm.move_to({i: PWM_MID[i] for i in range(6)}, 1000)
     return {"status": "ok"}
 
 
