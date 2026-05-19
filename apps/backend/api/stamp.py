@@ -97,7 +97,7 @@ def stamp_leave(session: dict = Depends(get_session)):
     """扫描请假条并核验盖章（SSE 流式）"""
     from vision.camera import SharedCamera
     from vision.qr_scanner import scan_qr
-    from validator.leave_validator import verify_leave_application
+    from validator_real.leave_validator import verify_leave_application
     from database.audit import log_action
     from config import SIMULATION_MODE
 
