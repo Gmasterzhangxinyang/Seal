@@ -32,6 +32,19 @@ def add_to_queue(
         )
         row_id = r.lastrowid
     assert row_id is not None
+
+    # Feishu notification to Wene
+    try:
+        from services.notify import notify_review_queue
+        notify_review_queue(
+            operator_id=operator_id,
+            doc_type=doc_type,
+            reason="自动核验不确定，需人工复审",
+            warnings=warnings,
+        )
+    except Exception:
+        pass  # never let notification failure break the main flow
+
     return row_id
 
 
