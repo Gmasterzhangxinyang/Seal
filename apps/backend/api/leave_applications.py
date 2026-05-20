@@ -19,6 +19,20 @@ def _decode_unicode_escapes(s: str) -> str:
         return s
     return _UNICODE_ESCAPES.sub(lambda m: chr(int(m.group(1), 16)), s)
 
+_LEAVE_TYPE_EN: dict[str, str] = {
+    "病假": "Sick Leave",
+    "事假": "Personal Leave",
+    "婚假": "Marriage Leave",
+    "产假": "Maternity Leave",
+    "丧假": "Bereavement Leave",
+    "公假": "Official Leave",
+    "其他": "Other",
+}
+
+def _to_en_leave_type(leave_type: str) -> str:
+    raw = _decode_unicode_escapes(leave_type)
+    return _LEAVE_TYPE_EN.get(raw, raw)
+
 
 class CreateLeaveApplicationRequest(BaseModel):
     student_id: str
@@ -427,39 +441,39 @@ def download_leave_application(
         "Body", parent=styles["Normal"], fontSize=12, fontName="NotoSansSC"
     )
 
-    story = [Paragraph("请 假 条", title_style), Spacer(1, 8 * mm)]
+    story = [Paragraph("Leave Application", title_style), Spacer(1, 8 * mm)]
 
     fields_para = [
         [
-            Paragraph("<b>申请编号</b>", small_style),
+            Paragraph("<b>Application ID</b>", small_style),
             Paragraph(app["application_id"], body_style),
         ],
         [
-            Paragraph("<b>学生姓名</b>", small_style),
+            Paragraph("<b>Student Name</b>", small_style),
             Paragraph(app["student_name"], body_style),
         ],
         [
-            Paragraph("<b>学　　号</b>", small_style),
+            Paragraph("<b>Student ID</b>", small_style),
             Paragraph(app["student_id"], body_style),
         ],
         [
-            Paragraph("<b>院　　系</b>", small_style),
+            Paragraph("<b>Department</b>", small_style),
             Paragraph(app["dept"] or "-", body_style),
         ],
         [
-            Paragraph("<b>请假类型</b>", small_style),
-            Paragraph(_decode_unicode_escapes(app["leave_type"]), body_style),
+            Paragraph("<b>Leave Type</b>", small_style),
+            Paragraph(_to_en_leave_type(app["leave_type"]), body_style),
         ],
         [
-            Paragraph("<b>开始日期</b>", small_style),
+            Paragraph("<b>Start Date</b>", small_style),
             Paragraph(app["start_date"], body_style),
         ],
         [
-            Paragraph("<b>结束日期</b>", small_style),
+            Paragraph("<b>End Date</b>", small_style),
             Paragraph(app["end_date"], body_style),
         ],
         [
-            Paragraph("<b>请假原因</b>", small_style),
+            Paragraph("<b>Reason</b>", small_style),
             Paragraph(app["reason"], body_style),
         ],
     ]
@@ -486,7 +500,7 @@ def download_leave_application(
     if app.get("approved_by"):
         story.append(
             Paragraph(
-                f"<b>审批人：</b>{app['approved_by']}　　<b>审批时间：</b>{app.get('approved_at', '-')}",
+                f"<b>Approved By: </b>{app['approved_by']}　　<b>Approved At: </b>{app.get('approved_at', '-')}",
                 small_style,
             )
         )
@@ -495,7 +509,7 @@ def download_leave_application(
     qr_buf.seek(0)
     qr_img_obj = Image(qr_buf, width=35 * mm, height=35 * mm)
     qr_para = Paragraph(
-        "<b>二维码</b><br/><font size=8>（审批通过后有效）</font>", small_style
+        "<b>QR Code</b><br/><font size=8>(Valid after approval)</font>", small_style
     )
     qr_table = Table([[qr_img_obj, qr_para]], colWidths=[40 * mm, 40 * mm])
     qr_table.setStyle(
