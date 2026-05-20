@@ -18,10 +18,10 @@ os.makedirs(TTS_CACHE_DIR, exist_ok=True)
 
 # 固定回复文本 → 预生成 TTS（工具 1-4）
 FIXED_TTS_TEXTS = {
-    1: "好的，机械臂已回到中位",
-    2: "好的，机械臂正在移动",
-    3: "好的，手腕抬起又放下啦",
-    4: "好的，现在开始盖章",
+    1: "OK, robotic arm has returned to home position",
+    2: "OK, robotic arm is moving",
+    3: "OK, wrist raised and lowered",
+    4: "OK, stamping now",
 }
 
 
@@ -129,8 +129,8 @@ def _summarize_text(raw_text: str, task_hint: str) -> str:
 
         client = OpenAI(api_key=VLM_API_KEY or "EMPTY", base_url=VLM_BASE_URL or "https://open.bigmodel.cn/api/paas/v4")
         prompt = (
-            f"你是机械臂语音助手小臂的查询总结助手。{task_hint}结果如下，"
-            f"请用简短、口语化、自然的语言（50字以内）总结给用户：\n\n{raw_text}"
+            f"You are a robotic arm voice assistant's query summarizer. {task_hint} results below. "
+            f"Summarize in short, conversational, natural language (under 50 words):\n\n{raw_text}"
         )
         response = client.chat.completions.create(
             model=CHAT_MODEL or "glm-4-flash",
@@ -151,7 +151,7 @@ def _execute_tool(tool_id: int, comment: str) -> str:
     if tool_id in (1, 2, 3, 4):
         # 机械臂动作：后台执行，不阻塞，立即返回
         threading.Thread(target=_execute_hardware, args=(tool_id, comment), daemon=True).start()
-        return FIXED_TTS_TEXTS.get(tool_id, "好的")
+        return FIXED_TTS_TEXTS.get(tool_id, "OK")
 
     elif tool_id == 5:  # query_leave_history
         import re
@@ -178,16 +178,16 @@ def _execute_tool(tool_id: int, comment: str) -> str:
                     ),
                 ).fetchall()
         if not rows:
-            return f"没有找到{'的请假记录' if name else '请假记录'}"
+            return f"No leave records found for {name}" if name else "No leave records found"
         # 统计请假次数
         leave_count = len(rows)
         name_in_record = rows[0][0]
-        student_id = rows[0][1] or "未知"
-        dept = rows[0][2] or "未知部门"
+        student_id = rows[0][1] or "Unknown"
+        dept = rows[0][2] or "Unknown"
         # 格式化每条记录
-        lines = [f"{r[3]}，{r[4]}到{r[5]}，状态：{r[6]}" for r in rows]
-        raw = f"姓名：{name_in_record}，学号：{student_id}，部门：{dept}，共请假{leave_count}次；" + "；".join(lines)
-        return _summarize_text(raw, "请假记录查询")
+        lines = [f"{r[3]}, {r[4]} to {r[5]}, status: {r[6]}" for r in rows]
+        raw = f"Name: {name_in_record}, ID: {student_id}, Dept: {dept}, total leaves: {leave_count}; " + "; ".join(lines)
+        return _summarize_text(raw, "leave record query")
 
     elif tool_id == 6:  # query_audit_logs
         from sqlalchemy import text
@@ -201,12 +201,12 @@ def _execute_tool(tool_id: int, comment: str) -> str:
                 ),
             ).fetchall()
         if not rows:
-            return "近期没有盖章成功记录"
-        lines = [f"{r[0]}，{r[1]}，{r[2] or '未知'}，结果：{r[3]}" for r in rows]
-        raw = "盖章成功记录：" + "；".join(lines)
-        return _summarize_text(raw, "盖章记录查询")
+            return "No recent successful stamping records"
+        lines = [f"{r[0]}, {r[1]}, {r[2] or 'Unknown'}, result: {r[3]}" for r in rows]
+        raw = "Successful stamping records: " + "; ".join(lines)
+        return _summarize_text(raw, "stamping record query")
 
-    return "未知动作"
+    return "Unknown action"
 
 
 class TTSRequest(BaseModel):
@@ -220,7 +220,7 @@ async def voice_chat(request: Request):
         form = await request.form()
         audio_file = form.get("audio")
         if not audio_file:
-            raise HTTPException(400, "未找到音频文件")
+            raise HTTPException(400, "Audio file not found")
 
         audio_bytes = await audio_file.read()
 
@@ -282,7 +282,7 @@ def text_to_speech(body: TTSRequest):
     from utils.dify_client import call_dify_tts
     audio = call_dify_tts(body.text)
     if not audio:
-        raise HTTPException(500, "TTS 生成失败")
+        raise HTTPException(500, "TTS generation failed")
     # 写入缓存供后续使用
     _cache_tts_audio(body.text, audio)
     return Response(content=audio, media_type="audio/wav")

@@ -22,7 +22,7 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
     if (!window.location.pathname.startsWith('/login')) {
       window.location.href = '/login'
     }
-    throw new ApiError('未登录', 401)
+    throw new ApiError('Not authenticated', 401)
   }
 
   if (!res.ok) {

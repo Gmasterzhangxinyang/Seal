@@ -104,49 +104,49 @@ def stamp_leave(session: dict = Depends(get_session)):
     operator_id = session["username"]
 
     def event_stream():
-        yield _sse("log", "开始处理请假条盖章...")
+        yield _sse("log", "Starting leave document verification...")
         try:
             # 1. 拍照
-            yield _sse("log", "正在拍照...")
+            yield _sse("log", "Capturing image...")
             camera = SharedCamera.get_instance()
             before_img = camera.capture_timestamped("leave_before")
-            yield _sse("log", f"拍照完成: {before_img}")
+            yield _sse("log", f"Image captured: {before_img}")
 
             # 2. 二维码扫描
-            yield _sse("log", "正在扫描二维码...")
+            yield _sse("log", "Scanning QR code...")
             qr_content, doc_type = scan_qr(before_img)
             if not qr_content:
                 yield _sse("result", json.dumps({
                     "success": False, "decision": "REJECTED", "risk_score": 70,
-                    "errors": ["未扫描到二维码"], "checks": [], "warnings": [],
+                    "errors": ["QR code not found"], "checks": [], "warnings": [],
                 }))
                 return
 
-            yield _sse("log", f"二维码识别成功: {qr_content[:50]}...")
+            yield _sse("log", f"QR code recognized: {qr_content[:50]}...")
 
             # 3. 二维码解析
-            yield _sse("log", "正在解析二维码内容...")
+            yield _sse("log", "Parsing QR code content...")
             try:
                 qr_data = json.loads(qr_content)
             except Exception:
                 yield _sse("result", json.dumps({
                     "success": False, "decision": "REJECTED", "risk_score": 70,
-                    "errors": ["二维码内容解析失败"], "checks": [], "warnings": [],
+                    "errors": ["Failed to parse QR code content"], "checks": [], "warnings": [],
                 }))
                 return
 
             if "application_id" not in qr_data:
                 yield _sse("result", json.dumps({
                     "success": False, "decision": "REJECTED", "risk_score": 70,
-                    "errors": ["二维码不是请假条二维码"], "checks": [], "warnings": [],
+                    "errors": ["QR code is not a leave application QR"], "checks": [], "warnings": [],
                 }))
                 return
 
             application_id = qr_data.get("application_id", "")
-            yield _sse("log", f"申请编号: {application_id}")
+            yield _sse("log", f"Application ID: {application_id}")
 
             # 4. OCR 识别（GLM-4V），识别不清时自动重新拍照+识别
-            yield _sse("log", "正在调用 GLM-4V 识别请假条内容（可能需要几秒）...")
+            yield _sse("log", "Running GLM-4V OCR recognition (may take a few seconds)...")
             extracted_fields = _gpt4v_extract(before_img)
 
             # 重试机制：识别结果太少时重新拍照再识别
@@ -156,39 +156,39 @@ def stamp_leave(session: dict = Depends(get_session)):
                     break  # 完全失败，不重试
                 if len(extracted_fields) >= 4:
                     break  # 识别质量足够
-                yield _sse("log", f"识别字段偏少 ({len(extracted_fields)}个)，重新拍照识别...")
+                yield _sse("log", f"Too few fields recognized ({len(extracted_fields)}), retaking photo...")
                 retry_img = camera.capture_timestamped("leave_ocr_retry")
                 retry_fields = _gpt4v_extract(retry_img)
                 if retry_fields and len(retry_fields) > len(extracted_fields):
                     extracted_fields = retry_fields
                     before_img = retry_img  # 使用重新拍照的图片
-                    yield _sse("log", f"重试成功，识别到 {len(extracted_fields)} 个字段")
+                    yield _sse("log", f"Retry succeeded, recognized {len(extracted_fields)} fields")
                 else:
-                    yield _sse("log", "重试未改善，使用首次识别结果")
+                    yield _sse("log", "Retry did not improve, using first recognition result")
 
             if not extracted_fields:
                 yield _sse("result", json.dumps({
                     "success": False, "decision": "REJECTED", "risk_score": 70,
-                    "errors": ["视觉模型识别失败"], "checks": [], "warnings": [],
+                    "errors": ["Vision model recognition failed"], "checks": [], "warnings": [],
                 }))
                 return
 
             fields_summary = ", ".join(
                 f"{k}={v}" for k, v in extracted_fields.items() if v
             )
-            yield _sse("log", f"识别完成: {fields_summary}")
+            yield _sse("log", f"Recognition complete: {fields_summary}")
 
             ocr_confidence = 0.95 if len(extracted_fields) >= 4 else 0.75
             full_text = str(extracted_fields)
 
 
             # 5. 核验
-            yield _sse("log", "正在核验请假信息...")
+            yield _sse("log", "Verifying leave information...")
             verification_result = verify_leave_application(
                 qr_content, extracted_fields, ocr_confidence
             )
             vresult_dict = verification_result.to_dict()
-            yield _sse("log", f"核验结果: {vresult_dict['decision']}")
+            yield _sse("log", f"Verification result: {vresult_dict['decision']}")
 
             # 6. 创建 StampTask
             task_id = (
@@ -249,39 +249,38 @@ def stamp_leave(session: dict = Depends(get_session)):
             after_img = None
 
             if decision == "PASS":
-                yield _sse("log", "核验通过，准备盖章...")
+                yield _sse("log", "Verification passed, preparing to stamp...")
                 pre_stamp_img = camera.capture_timestamped("leave_pre_stamp")
                 if _paper_moved(before_img, pre_stamp_img):
                     decision = "REVIEW"
                     vresult_dict["decision"] = "REVIEW"
                     vresult_dict["warnings"].append(
-                        "盖章前检测到纸张位置移动，进入人工复审"
+                        "Paper position moved before stamping, escalated to manual review"
                     )
-                    yield _sse("log", "检测到纸张移动，转为人工复审")
+                    yield _sse("log", "Paper movement detected, escalated to manual review")
                 else:
                     if not SIMULATION_MODE:
-                        yield _sse("log", "正在执行机械臂盖章...")
+                        yield _sse("log", "Executing robotic arm stamping...")
                         _do_leave_stamp(before_img)
-                        yield _sse("log", "机械臂盖章完成")
+                        yield _sse("log", "Robotic arm stamping complete")
                     else:
-                        yield _sse("log", "仿真模式，跳过机械臂")
+                        yield _sse("log", "Simulation mode, skipping robotic arm")
                     after_img = camera.capture_timestamped("leave_after")
-                    yield _sse("log", "盖章后拍照完成")
+                    yield _sse("log", "Post-stamp image captured")
                     _update_stamp_task(task_id, "STAMPED", "PASS", before_img, after_img)
                     _mark_leave_stamped(application_id, operator_id)
 
             elif decision == "REVIEW":
-                yield _sse("log", "进入人工复审队列...")
+                yield _sse("log", "Entering manual review queue...")
                 # Feishu notification to Wene
                 try:
                     from services.notify import notify_review_queue
-                    # 判断触发原因：纸张移动 or Dify 无法自动裁决
                     warn_texts = vresult_dict.get("warnings", [])
-                    is_paper_moved = any("纸张" in w for w in warn_texts)
+                    is_paper_moved = any("paper" in w.lower() or "Paper" in w for w in warn_texts)
                     reason = (
-                        "盖章前检测到纸张位置移动"
+                        "Paper position moved before stamping"
                         if is_paper_moved
-                        else "Dify AI 无法自动裁决，需人工审批"
+                        else "Dify AI unable to auto-decide, requires manual approval"
                     )
                     notify_review_queue(
                         operator_id=operator_id,
@@ -313,7 +312,7 @@ def stamp_leave(session: dict = Depends(get_session)):
                 _update_stamp_task(task_id, "REVIEW", decision, before_img, None)
 
             elif decision == "REJECTED":
-                yield _sse("log", "核验未通过，拒绝盖章")
+                yield _sse("log", "Verification failed, stamping rejected")
                 _update_stamp_task(task_id, "REJECTED", decision, before_img, None)
 
             # 8. 审计日志
@@ -329,7 +328,7 @@ def stamp_leave(session: dict = Depends(get_session)):
                 ocr_text=full_text,
             )
 
-            yield _sse("log", "处理完成")
+            yield _sse("log", "Processing complete")
             yield _sse("result", json.dumps({
                 "success": decision in ("PASS", "REVIEW"),
                 "task_id": task_id,
@@ -345,7 +344,7 @@ def stamp_leave(session: dict = Depends(get_session)):
 
         except Exception as e:
             logging.exception("[stamp/leave] 处理时出错")
-            yield _sse("log", f"处理出错: {e}")
+            yield _sse("log", f"Processing error: {e}")
             yield _sse("result", json.dumps({
                 "success": False, "decision": "REJECTED", "risk_score": 70,
                 "errors": [str(e)], "checks": [], "warnings": [],
