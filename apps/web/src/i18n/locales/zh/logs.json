@@ -19,5 +19,11 @@
   "extractedFields": "提取字段",
   "noOcrData": "无 OCR 数据",
   "confirmDelete": "确定删除此审计记录？关联的请假申请将被重置为可重新盖章状态。",
-  "deleteFailed": "删除失败"
+  "deleteFailed": "删除失败",
+  "docTypeLabel": {
+    "leave": "请假条",
+    "expense": "报销申请表",
+    "review_rejected": "复审拒绝",
+    "review_approved": "复审通过"
+  }
 }

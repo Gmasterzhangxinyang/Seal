@@ -117,7 +117,7 @@ def stamp_leave(session: dict = Depends(get_session)):
             qr_content, doc_type = scan_qr(before_img)
             if not qr_content:
                 yield _sse("result", json.dumps({
-                    "success": False, "decision": "REJECT", "risk_score": 70,
+                    "success": False, "decision": "REJECTED", "risk_score": 70,
                     "errors": ["未扫描到二维码"], "checks": [], "warnings": [],
                 }))
                 return
@@ -130,14 +130,14 @@ def stamp_leave(session: dict = Depends(get_session)):
                 qr_data = json.loads(qr_content)
             except Exception:
                 yield _sse("result", json.dumps({
-                    "success": False, "decision": "REJECT", "risk_score": 70,
+                    "success": False, "decision": "REJECTED", "risk_score": 70,
                     "errors": ["二维码内容解析失败"], "checks": [], "warnings": [],
                 }))
                 return
 
             if "application_id" not in qr_data:
                 yield _sse("result", json.dumps({
-                    "success": False, "decision": "REJECT", "risk_score": 70,
+                    "success": False, "decision": "REJECTED", "risk_score": 70,
                     "errors": ["二维码不是请假条二维码"], "checks": [], "warnings": [],
                 }))
                 return
@@ -168,7 +168,7 @@ def stamp_leave(session: dict = Depends(get_session)):
 
             if not extracted_fields:
                 yield _sse("result", json.dumps({
-                    "success": False, "decision": "REJECT", "risk_score": 70,
+                    "success": False, "decision": "REJECTED", "risk_score": 70,
                     "errors": ["视觉模型识别失败"], "checks": [], "warnings": [],
                 }))
                 return
@@ -312,9 +312,9 @@ def stamp_leave(session: dict = Depends(get_session)):
                     )
                 _update_stamp_task(task_id, "REVIEW", decision, before_img, None)
 
-            elif decision == "REJECT":
+            elif decision == "REJECTED":
                 yield _sse("log", "核验未通过，拒绝盖章")
-                _update_stamp_task(task_id, "REJECT", decision, before_img, None)
+                _update_stamp_task(task_id, "REJECTED", decision, before_img, None)
 
             # 8. 审计日志
             log_action(
@@ -347,7 +347,7 @@ def stamp_leave(session: dict = Depends(get_session)):
             logging.exception("[stamp/leave] 处理时出错")
             yield _sse("log", f"处理出错: {e}")
             yield _sse("result", json.dumps({
-                "success": False, "decision": "REJECT", "risk_score": 70,
+                "success": False, "decision": "REJECTED", "risk_score": 70,
                 "errors": [str(e)], "checks": [], "warnings": [],
             }))
 

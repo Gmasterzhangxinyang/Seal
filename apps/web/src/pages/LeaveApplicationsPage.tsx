@@ -19,6 +19,28 @@ import {
   TableCell,
 } from '@/components/ui/table'
 
+const leaveTypeI18nKey: Record<string, string> = {
+  '病假': 'sickLeave',
+  '事假': 'personalLeave',
+  '婚假': 'marriageLeave',
+  '产假': 'maternityLeave',
+  '丧假': 'bereavementLeave',
+  '公假': 'officialLeave',
+  '其他': 'other',
+  'Sick Leave': 'sickLeave',
+  'Personal Leave': 'personalLeave',
+  'Marriage Leave': 'marriageLeave',
+  'Maternity Leave': 'maternityLeave',
+  'Bereavement Leave': 'bereavementLeave',
+  'Official Leave': 'officialLeave',
+  'Other': 'other',
+}
+
+function translateLeaveType(raw: string, t: (key: string) => string): string {
+  const key = leaveTypeI18nKey[raw.trim()]
+  return key ? t(key) : raw
+}
+
 const statusBadgeVariant: Record<string, 'warning' | 'success' | 'destructive' | 'info' | 'default'> = {
   SUBMITTED: 'warning',
   APPROVED: 'success',
@@ -117,7 +139,7 @@ export function LeaveApplicationsPage() {
                 <TableCell className="font-mono text-xs">{app.application_id}</TableCell>
                 <TableCell>{app.student_name}</TableCell>
                 <TableCell>{app.student_id}</TableCell>
-                <TableCell>{app.leave_type}</TableCell>
+                <TableCell>{translateLeaveType(app.leave_type, t)}</TableCell>
                 <TableCell>{app.start_date}</TableCell>
                 <TableCell>{app.end_date}</TableCell>
                 <TableCell>

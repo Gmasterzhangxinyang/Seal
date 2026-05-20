@@ -19,5 +19,11 @@
   "extractedFields": "Extracted Fields",
   "noOcrData": "No OCR Data",
   "confirmDelete": "Are you sure you want to delete this audit record? The associated leave application will be reset to re-stampable status.",
-  "deleteFailed": "Delete failed"
+  "deleteFailed": "Delete failed",
+  "docTypeLabel": {
+    "leave": "Leave Application",
+    "expense": "Expense Reimbursement",
+    "review_rejected": "Review Rejected",
+    "review_approved": "Review Approved"
+  }
 }

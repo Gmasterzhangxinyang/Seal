@@ -10,6 +10,28 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Card, CardContent } from '@/components/ui/card'
 
+const leaveTypeI18nKey: Record<string, string> = {
+  '病假': 'sickLeave',
+  '事假': 'personalLeave',
+  '婚假': 'marriageLeave',
+  '产假': 'maternityLeave',
+  '丧假': 'bereavementLeave',
+  '公假': 'officialLeave',
+  '其他': 'other',
+  'Sick Leave': 'sickLeave',
+  'Personal Leave': 'personalLeave',
+  'Marriage Leave': 'marriageLeave',
+  'Maternity Leave': 'maternityLeave',
+  'Bereavement Leave': 'bereavementLeave',
+  'Official Leave': 'officialLeave',
+  'Other': 'other',
+}
+
+function translateLeaveType(raw: string, t: (key: string) => string): string {
+  const key = leaveTypeI18nKey[raw.trim()]
+  return key ? t(key) : raw
+}
+
 const statusBadgeVariant: Record<string, 'warning' | 'success' | 'destructive' | 'info' | 'default'> = {
   SUBMITTED: 'warning',
   APPROVED: 'success',
@@ -97,7 +119,7 @@ export function LeaveApplicationDetailPage() {
               </div>
               <div>
                 <span className="text-muted-foreground">{t('leaveType')}：</span>
-                {app.leave_type}
+                {translateLeaveType(app.leave_type, t)}
               </div>
               <div>
                 <span className="text-muted-foreground">{t('startDate')}：</span>

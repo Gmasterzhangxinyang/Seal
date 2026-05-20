@@ -80,16 +80,37 @@ def _execute_hardware(tool_id: int, comment: str):
 
     try:
         if tool_id == 1:  # arm_home
-            get_arm().move_to({i: PWM_MID for i in range(6)}, 1200)
+            get_arm().move_to({i: PWM_MID[i] for i in range(6)}, 1200)
             logger.info("[voice] arm_home 执行完成")
 
         elif tool_id == 2:  # arm_move
             logger.info(f"[voice] arm_move: {comment}")
 
         elif tool_id == 3:  # arm_greet
-            get_arm().move_single(3, 2200, 500)
-            time.sleep(0.5)
-            get_arm().move_single(3, 1500, 500)
+            # 回中位 → 抬手 → 鞠躬（向左）→ 抬手 → 鞠躬（中）→ 抬手 → 鞠躬（向右）→ 回中位
+            get_arm().move_to({i: PWM_MID[i] for i in range(6)}, 600)
+            time.sleep(0.4)
+
+            def _wave():
+                get_arm().move_single(3, 2200, 300)
+                time.sleep(0.2)
+                get_arm().move_single(3, PWM_MID[3], 300)
+
+            _wave()
+            time.sleep(0.2)
+            get_arm().move_single(0, 1320, 250)
+            time.sleep(0.25)
+            _wave()
+            time.sleep(0.2)
+            get_arm().move_single(0, 1480, 250)
+            time.sleep(0.25)
+            _wave()
+            time.sleep(0.2)
+            get_arm().move_single(0, 1680, 250)
+            time.sleep(0.25)
+            _wave()
+            time.sleep(0.2)
+            get_arm().move_to({i: PWM_MID[i] for i in range(6)}, 600)
             logger.info("[voice] arm_greet 执行完成")
 
         elif tool_id == 4:  # stamp_leave_check

@@ -9,7 +9,8 @@ SERVO_NAMES = {0: "底盘", 1: "大臂", 2: "小臂", 3: "手腕", 4: "夹爪", 
 
 PWM_MIN = 500
 PWM_MAX = 2500
-PWM_MID = 1500
+# 初始位置：s0=1500, s1=2130, s2=2123, s3=1889, s4=1493, s5=1500
+PWM_MID = {0: 1500, 1: 2130, 2: 2123, 3: 1889, 4: 1493, 5: 1500}
 
 
 def _cmd(servo_id: int, pwm: int, duration: int) -> bytes:
@@ -47,12 +48,12 @@ class WeArmController:
             time.sleep(2)
             self._send(
                 _cmd_multi(
-                    (0, PWM_MID, 1000),
-                    (1, PWM_MID, 1000),
-                    (2, PWM_MID, 1000),
-                    (3, PWM_MID, 1000),
-                    (4, PWM_MID, 1000),
-                    (5, PWM_MID, 1000),
+                    (0, PWM_MID[0], 1000),
+                    (1, PWM_MID[1], 1000),
+                    (2, PWM_MID[2], 1000),
+                    (3, PWM_MID[3], 1000),
+                    (4, PWM_MID[4], 1000),
+                    (5, PWM_MID[5], 1000),
                 )
             )
             time.sleep(1.5)
@@ -85,8 +86,8 @@ class WeArmController:
 
     def stamp_at(self, position_values: dict):
         """在指定位置执行盖章：移动到目标位置 → 下压 → 夹爪收放 → 回中位"""
-        neutral = {i: PWM_MID for i in range(6)}
-        target = {i: int(position_values.get(i, PWM_MID)) for i in range(6)}
+        neutral = {i: PWM_MID[i] for i in range(6)}
+        target = {i: int(position_values.get(i, PWM_MID[i])) for i in range(6)}
 
         self.move_to(target, 800)
         time.sleep(0.3)
