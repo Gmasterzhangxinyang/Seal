@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 
 from api.deps import get_session
-from database import template as tpl_db
 from database.connection import get_db
 
 router = APIRouter(prefix="/stats", tags=["stats"])
@@ -42,11 +41,9 @@ def stats_data(session: dict = Depends(get_session)):
             text("SELECT * FROM audit_log ORDER BY id DESC LIMIT 10")
         ).fetchall()
 
-    type_map = tpl_db.get_type_name_map()
-    type_distribution = {type_map.get(c, c): n for c, n in type_rows}
+    type_distribution = {c: n for c, n in type_rows}
 
-    label_map = {"APPROVED": "通过", "REJECTED": "拒绝", "PENDING_REVIEW": "待复审"}
-    result_distribution = {label_map.get(r, r): n for r, n in result_rows}
+    result_distribution = {r: n for r, n in result_rows}
 
     return {
         "total": total,
@@ -56,8 +53,8 @@ def stats_data(session: dict = Depends(get_session)):
         "pending_queue": pending_queue,
         "type_distribution": type_distribution,
         "result_distribution": result_distribution,
-        "daily_trend": [[r[0], label_map.get(r[1], r[1]), r[2]] for r in daily_rows],
+        "daily_trend": [[r[0], r[1], r[2]] for r in daily_rows],
         "recent": [
-            [r[0], r[1], r[2], type_map.get(r[3], r[3] or "未知"), r[6]] for r in recent
+            [r[0], r[1], r[2], r[3], r[6]] for r in recent
         ],
     }

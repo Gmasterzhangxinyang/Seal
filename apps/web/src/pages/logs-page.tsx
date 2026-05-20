@@ -21,6 +21,7 @@ import {
 const resultBadgeVariant: Record<string, 'success' | 'destructive' | 'warning'> = {
   APPROVED: 'success',
   REJECTED: 'destructive',
+  REJECT: 'destructive',
   PENDING_REVIEW: 'warning',
 }
 
@@ -59,6 +60,7 @@ export function LogsPage() {
   const resultLabel: Record<string, string> = {
     APPROVED: t('approved'),
     REJECTED: t('rejected'),
+    REJECT: t('rejected'),
     PENDING_REVIEW: t('pendingReview'),
   }
 
@@ -112,7 +114,7 @@ export function LogsPage() {
                   >
                     <TableCell>{log.timestamp}</TableCell>
                     <TableCell>{log.operator_id}</TableCell>
-                    <TableCell>{t(`docType.${log.doc_type}`) || log.doc_type_name}</TableCell>
+                    <TableCell>{t(`docTypeLabel.${log.doc_type}`, log.doc_type)}</TableCell>
                     <TableCell>
                       <Badge variant={resultBadgeVariant[log.result] || 'default'}>
                         {resultLabel[log.result] || log.result}

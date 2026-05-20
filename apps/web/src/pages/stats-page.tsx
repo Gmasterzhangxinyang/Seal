@@ -101,7 +101,7 @@ export function StatsPage() {
                 return (
                   <div key={type} className="space-y-1.5">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-foreground font-medium truncate mr-3">{type}</span>
+                      <span className="text-foreground font-medium truncate mr-3">{t(`docTypeLabel.${type}`, type)}</span>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="font-mono tabular-nums text-muted-foreground">{count}</span>
                         <span className="text-xs text-muted-foreground/60 w-10 text-right">{pct}%</span>
@@ -138,7 +138,7 @@ export function StatsPage() {
                     <div className="flex items-center justify-between text-sm">
                       <div className="flex items-center gap-2">
                         <span className={`inline-block w-2 h-2 rounded-full ${barColor}`} />
-                        <span className="text-foreground font-medium">{result}</span>
+                        <span className="text-foreground font-medium">{t(`resultLabel.${result}`, result)}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="font-mono tabular-nums text-muted-foreground">{count}</span>

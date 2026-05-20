@@ -37,6 +37,18 @@
   "pendingQueue": "待处理",
   "docTypeDistribution": "文件类型分布",
   "resultDistribution": "审批结果分布",
+  "docTypeLabel": {
+    "leave": "请假条",
+    "expense": "报销单",
+    "review_rejected": "复审拒绝",
+    "review_approved": "复审通过"
+  },
+  "resultLabel": {
+    "APPROVED": "通过",
+    "REJECTED": "拒绝",
+    "REJECT": "拒绝",
+    "PENDING_REVIEW": "待复审"
+  },
   "userManagement": "用户管理",
   "username": "用户名",
   "email": "邮箱",

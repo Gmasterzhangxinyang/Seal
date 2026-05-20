@@ -37,6 +37,18 @@
   "pendingQueue": "Pending Queue",
   "docTypeDistribution": "Document Type Distribution",
   "resultDistribution": "Approval Result Distribution",
+  "docTypeLabel": {
+    "leave": "Leave Application",
+    "expense": "Expense Reimbursement",
+    "review_rejected": "Review Rejected",
+    "review_approved": "Review Approved"
+  },
+  "resultLabel": {
+    "APPROVED": "Approved",
+    "REJECTED": "Rejected",
+    "REJECT": "Rejected",
+    "PENDING_REVIEW": "Pending Review"
+  },
   "userManagement": "User Management",
   "username": "Username",
   "email": "Email",

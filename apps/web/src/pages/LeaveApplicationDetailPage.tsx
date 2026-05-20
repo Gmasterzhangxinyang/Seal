@@ -17,6 +17,19 @@ const leaveTypeI18nKey: Record<string, string> = {
   '产假': 'maternityLeave',
   '丧假': 'bereavementLeave',
   '公假': 'officialLeave',
+  '其他': 'other',
+  'Sick Leave': 'sickLeave',
+  'Personal Leave': 'personalLeave',
+  'Marriage Leave': 'marriageLeave',
+  'Maternity Leave': 'maternityLeave',
+  'Bereavement Leave': 'bereavementLeave',
+  'Official Leave': 'officialLeave',
+  'Other': 'other',
+}
+
+function translateLeaveType(raw: string, t: (key: string) => string): string {
+  const key = leaveTypeI18nKey[raw.trim()]
+  return key ? t(key) : raw
 }
 
 const statusBadgeVariant: Record<string, 'warning' | 'success' | 'destructive' | 'info' | 'default'> = {
@@ -106,7 +119,7 @@ export function LeaveApplicationDetailPage() {
               </div>
               <div>
                 <span className="text-muted-foreground">{t('leaveType')}：</span>
-                {t(leaveTypeI18nKey[app.leave_type] || 'other')}
+                {translateLeaveType(app.leave_type, t)}
               </div>
               <div>
                 <span className="text-muted-foreground">{t('startDate')}：</span>

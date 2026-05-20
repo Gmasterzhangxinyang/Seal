@@ -64,7 +64,7 @@ def verify_leave_application(
     Returns:
         LeaveVerificationResult 包含 decision, risk_score, checks, errors, warnings
     """
-    result = LeaveVerificationResult("REJECT", 0)
+    result = LeaveVerificationResult("REJECTED", 0)
 
     # ── 检查1：二维码签名验证 ──────────────────────────────────────────────
     payload = qr_string_to_payload(qr_content)
@@ -271,7 +271,7 @@ def verify_leave_application(
 
     # ── 最终决策 ───────────────────────────────────────────────────────────
     if result.errors:
-        result.decision = "REJECT"
+        result.decision = "REJECTED"
     elif result.risk_score >= 40:
         result.decision = "REVIEW"
     elif result.risk_score >= 0:
@@ -285,13 +285,13 @@ def _finalize(
 ) -> LeaveVerificationResult:
     """在早期失败时快速返回 REJECT"""
     if result.errors:
-        result.decision = "REJECT"
+        result.decision = "REJECTED"
     elif result.warnings and result.risk_score >= 40:
         result.decision = "REVIEW"
     elif result.warnings:
         result.decision = "REVIEW"
     else:
-        result.decision = "REJECT"
+        result.decision = "REJECTED"
     return result
 
 
