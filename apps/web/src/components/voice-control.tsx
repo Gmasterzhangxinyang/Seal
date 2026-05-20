@@ -142,8 +142,8 @@ export function VoiceControl() {
         <button
           onMouseDown={startListening}
           onMouseUp={stopListening}
-          onTouchStart={startListening}
-          onTouchEnd={stopListening}
+          onTouchStart={(e) => { e.preventDefault(); startListening() }}
+          onTouchEnd={(e) => { e.preventDefault(); stopListening() }}
           disabled={processing}
           className={cn(
             'w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all duration-150 ease-out select-none cursor-pointer',
