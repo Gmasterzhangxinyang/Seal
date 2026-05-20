@@ -14,13 +14,13 @@ from urllib.error import URLError
 log = logging.getLogger("mec202.notify")
 
 # Webhook endpoint — the review_webhook.py server running on Hermes machine.
-# Robot machine uses WireGuard (10.66.66.1), local dev uses 127.0.0.1.
-# Set via environment variable MEC202_WEBHOOK_URL, or default to localhost.
+# Default to WireGuard address so robot machine works out of the box.
+# Local dev without WG: override via MEC202_WEBHOOK_URL=http://127.0.0.1:8002/review
 import os
 
 _WEBHOOK_URL = os.environ.get(
     "MEC202_WEBHOOK_URL",
-    "http://127.0.0.1:8002/review",
+    "http://10.66.66.1:8002/review",
 )
 
 
