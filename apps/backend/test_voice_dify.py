@@ -6,9 +6,8 @@ import tempfile
 import os
 import pyaudio
 
-DIFY_APP_ID = "app-LsjmYRdKgWnLvI7TdpCs8UcV"  # 语音问答工作流
-DIFY_API_KEY = "app-LsjmYRdKgWnLvI7TdpCs8UcV"   # app ID 作为 key
-BASE_URL = "https://api.dify.ai/v1"
+DIFY_API_KEY = os.environ.get("DIFY_API_KEY", "")
+BASE_URL = os.environ.get("DIFY_BASE_URL", "https://api.dify.ai/v1")
 
 CHUNK = 1024
 FORMAT = pyaudio.paInt16
