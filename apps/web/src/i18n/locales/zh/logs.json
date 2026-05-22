@@ -1,0 +1,29 @@
+{
+  "auditLogs": "审计日志",
+  "time": "时间",
+  "operator": "操作员",
+  "docType": "文件类型",
+  "result": "结果",
+  "error": "错误",
+  "collapse": "收起",
+  "expand": "展开",
+  "delete": "删除",
+  "approved": "通过",
+  "rejected": "拒绝",
+  "pendingReview": "待复审",
+  "docImage": "文件图像",
+  "beforeStamp": "盖章前",
+  "afterStamp": "盖章后",
+  "noImage": "无图片",
+  "ocrResult": "OCR 识别结果",
+  "extractedFields": "提取字段",
+  "noOcrData": "无 OCR 数据",
+  "confirmDelete": "确定删除此审计记录？关联的请假申请将被重置为可重新盖章状态。",
+  "deleteFailed": "删除失败",
+  "docTypeLabel": {
+    "leave": "请假条",
+    "expense": "报销申请表",
+    "review_rejected": "复审拒绝",
+    "review_approved": "复审通过"
+  }
+}

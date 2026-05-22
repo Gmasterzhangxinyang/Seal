@@ -1,0 +1,13 @@
+{
+  "appName": "MEC202",
+  "appSubtitle": "文档核验盖章系统",
+  "dashboard": "操作台",
+  "leaveApplications": "请假申请",
+  "auditLogs": "审计日志",
+  "manualReview": "人工复审",
+  "templateManagement": "模板管理",
+  "userManagement": "用户管理",
+  "statsPanel": "统计面板",
+  "armCalibration": "机械臂标定",
+  "logout": "退出"
+}

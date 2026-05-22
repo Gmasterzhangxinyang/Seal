@@ -1,0 +1,21 @@
+{
+  "manualReview": "Manual Review",
+  "pending": "Pending",
+  "all": "All",
+  "noData": "No data",
+  "statusPending": "Pending",
+  "statusApproved": "Approved",
+  "statusRejected": "Rejected",
+  "statusStamping": "Stamping",
+  "expand": "Expand",
+  "collapse": "Collapse",
+  "docImage": "Document Image",
+  "reviewFile": "Review File",
+  "noImage": "No Image",
+  "ocrResult": "OCR Result",
+  "warnings": "Warnings",
+  "extractedFields": "Extracted Fields",
+  "noDetailData": "No detailed data",
+  "approve": "Approve",
+  "reject": "Reject"
+}
