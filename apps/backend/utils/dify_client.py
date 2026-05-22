@@ -32,7 +32,6 @@ class DifyLeaveWorkflow:
                 "reason": reason,
             },
             "response_mode": "blocking",
-            "workflow_id": self.api_key,
             "user": "mec202_system",
         }
         resp = requests.post(url, json=payload, headers=headers, timeout=120)

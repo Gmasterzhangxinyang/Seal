@@ -179,9 +179,9 @@ FISH_AUDIO_API_KEY = os.environ.get("FISH_AUDIO_API_KEY", "")
 DASHSCOPE_API_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
 
 # ─── Dify AI 审批 ──────────────────────────────────────────────────────────────
-DIFY_API_KEY = os.environ.get("DIFY_API_KEY", "app-YLvNXsCxer7Q5VKS0bsjdmit")  # 请假条审批
-DIFY_VOICE_CHAT_APP_ID = "app-LsjmYRdKgWnLvI7TdpCs8UcV"  # 语音问答工作流（也是它的 API key）
-DIFY_VOICE_TTS_APP_ID = "app-zyiT0PYF7fFDhhXeWZzUsc4N"   # voice.yml TTS 工作流（也是它的 API key）
+DIFY_API_KEY = os.environ.get("DIFY_API_KEY", "")
+DIFY_VOICE_CHAT_APP_ID = os.environ.get("DIFY_VOICE_CHAT_APP_ID", "")
+DIFY_VOICE_TTS_APP_ID = os.environ.get("DIFY_VOICE_TTS_APP_ID", "")
 
 # ─── Aurora Chat Assistant ────────────────────────────────────────────────────
 AURORA_CHAT_URL = os.environ.get("AURORA_CHAT_URL", "http://127.0.0.1:7000/chat")
