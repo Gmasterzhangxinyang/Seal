@@ -40,7 +40,19 @@
       "Bash(\"C:/Program Files/ffmpeg-6.0-full_build/bin/ffmpeg\" -f s16le -ar 16000 -ac 1 -i /dev/zero -t 0.1 -y test.pcm)",
       "Bash(pkill -f \"uv run python main.py\")",
       "Bash(pkill -f \"python.*main\")",
-      "Bash(pkill -f \"uv run python\")"
+      "Bash(pkill -f \"uv run python\")",
+      "Bash(ollama list *)",
+      "Bash(/c/Users/28491/Desktop/Lab/MEC202/apps/backend/.venv/Scripts/python.exe -c \"import alembic; print\\(alembic.__version__\\)\")",
+      "Bash(.venv/Scripts/python.exe *)",
+      "Bash(/c/Users/28491/Desktop/Lab/MEC202/apps/backend/.venv/Scripts/python.exe -c ' *)",
+      "Bash(pip3 show *)",
+      "Bash(.venv/Scripts/pip.exe install *)",
+      "Bash(/c/Users/28491/Desktop/Lab/MEC202/apps/backend/.venv/Scripts/python.exe -m pip install fishaudio)",
+      "Bash(mv \"部署.md\" \"Deployment.md\")",
+      "Bash(mv \"技术栈与配置.md\" \"Tech-Stack-and-Configuration.md\")",
+      "Bash(mv \"软件原型使用文档.md\" \"Software-Prototype-User-Guide.md\")",
+      "Bash(mv \"README_完整项目文档.md\" \"README_Full-Project-Documentation.md\")",
+      "Bash(mv \"用户反馈.md\" \"User-Feedback.md\")"
     ]
   }
 }

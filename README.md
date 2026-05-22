@@ -1,635 +1,518 @@
-# MEC202 文档核验自动盖章机器人 — 软件原型使用文档
+<p align="center">
+  <h1 align="center">MEC202 — Intelligent Document Verification & Stamping Robot</h1>
+  <img src="docs/logo.png" alt="Logo" width="100%">
+</p>
 
-> **课程项目 MEC202 · SPECIFIC GENERAL PROJECT 9**  
-> A robot server for self service of documentation  
-> 指导老师：Bangxiang Chen（Bangxiang.chen@xjtlu.edu.cn）  
-> 维护分支：`wene` · 版本 v1.0 · 最后更新：2026-05-19  
-> 访问地址：`http://110.42.229.174`
-
----
-
-## 目录
-
-**使用篇**
-1. [系统概述](#1-系统概述)
-2. [访问与登录](#2-访问与登录)
-3. [界面概览](#3-界面概览)
-4. [操作台：文档盖章](#4-操作台文档盖章)
-5. [请假申请管理](#5-请假申请管理)
-6. [人工复审](#6-人工复审)
-7. [模板管理](#7-模板管理)
-8. [审计日志](#8-审计日志)
-9. [用户管理](#9-用户管理)
-10. [机械臂标定](#10-机械臂标定)
-11. [语音控制](#11-语音控制)
-12. [统计面板](#12-统计面板)
-13. [常见问题](#13-常见问题)
-
-**技术篇**
-14. [系统架构](#14-系统架构)
-15. [OCR 方案：GLM-4V API 接入](#15-ocr-方案glm-4v-api-接入)
-16. [部署架构](#16-部署架构)
-17. [API 文档](#17-api-文档)
-18. [项目文件结构](#18-项目文件结构)
-19. [团队分工](#19-团队分工)
+<p align="center">
+  <strong>Course Project MEC202 · SPECIFIC GENERAL PROJECT 9</strong><br>
+  A robot server for self service of documentation<br>
+  Supervisor: Bangxiang Chen (Bangxiang.chen@xjtlu.edu.cn)<br>
+  Maintenance branch: <code>wene</code> · Version v1.0 · Last updated: 2026-05-22<br>
+  Live URL: <a href="http://110.42.229.174">http://110.42.229.174</a>
+</p>
 
 ---
 
-## 1. 系统概述
+## Table of Contents
 
-本系统是一个**文档核验自动盖章机器人**，用于学校行政场景。核心能力：
+**User Guide**
+1. [System Overview](#1-system-overview)
+2. [Access & Login](#2-access--login)
+3. [Interface Overview](#3-interface-overview)
+4. [Stamping Console](#4-stamping-console)
+5. [Leave Application Management](#5-leave-application-management)
+6. [Manual Review](#6-manual-review)
+7. [Template Management](#7-template-management)
+8. [Audit Log](#8-audit-log)
+9. [User Management](#9-user-management)
+10. [Robotic Arm Calibration](#10-robotic-arm-calibration)
+11. [Voice Control](#11-voice-control)
+12. [Statistics Dashboard](#12-statistics-dashboard)
+13. [FAQ](#13-faq)
 
-- **文档扫描与 OCR 识别**：摄像头拍照后通过 GLM-4V API 自动提取文档内容
-- **规则核验**：按模板规则自动验证文档字段（必填项、格式、类型等）
-- **机械臂自动盖章**：核验通过后 WeArm 六自由度机械臂自动定位盖章
-- **人工复审闭环**：自动核验失败的文件进入复审队列，管理员手动审批
-- **请假条全流程**：在线提交 → 审核员审批 → 下载含防伪二维码的 PDF → 打印 → 摄像头核验盖章
-- **审计追溯**：每次操作记录盖章前后照片、操作员、时间戳
-
-### 用户角色与权限
-
-| 角色 | 用户名 | 密码 | 可访问功能 |
-|------|--------|------|-----------|
-| **管理员** | `admin` | `admin123` | 全部功能：盖章、请假、复审、模板、用户管理、标定、统计 |
-| **操作员** | `operator` | `operator123` | 操作台盖章、提交请假申请、查看自己的申请 |
-| **复审员** | `reviewer` | `reviewer123` | 操作台盖章、审批请假、人工复审、查看审计日志 |
-
----
-
-## 2. 访问与登录
-
-### 2.1 访问地址
-
-在浏览器中打开 `http://110.42.229.174` 即可进入系统登录页。
-
-### 2.2 登录
-
-1. 在登录页输入用户名和密码
-2. 点击 **登录** 按钮
-3. 登录成功后自动跳转到操作台首页
-
-### 2.3 注册
-
-系统支持邮箱注册。点击登录页的 **注册** 链接，填写用户名、邮箱、密码即可创建账号。新注册用户默认为操作员角色，需管理员手动升级。
-
-### 2.4 登出
-
-点击侧栏底部的登出图标即可退出登录。
+**Technical Reference**
+14. [System Architecture](#14-system-architecture)
+15. [OCR Solution: GLM-4V API Integration](#15-ocr-solution-glm-4v-api-integration)
+16. [Deployment Architecture](#16-deployment-architecture)
+17. [API Documentation](#17-api-documentation)
+18. [Project File Structure](#18-project-file-structure)
+19. [Team Roles](#19-team-roles)
 
 ---
 
-## 3. 界面概览
+## 1. System Overview
 
-### 3.1 侧栏导航
+This system is an **intelligent document verification and stamping robot** designed for university administration scenarios. Core capabilities:
 
-登录后页面左侧为导航侧栏。侧栏可折叠（点击左上角折叠按钮），折叠后仅显示图标。
+- **Document Scanning & OCR**: Captures images via camera and automatically extracts document content through GLM-4V API
+- **Rule-Based Verification**: Automatically validates document fields (required fields, format, type, etc.) against template rules
+- **Robotic Arm Stamping**: WeArm 6-DOF robotic arm automatically positions and stamps documents after verification passes
+- **Manual Review Loop**: Documents that fail automatic verification enter a review queue for administrator approval
+- **Full Leave Application Workflow**: Online submission → Reviewer approval → Download QR-code-secured PDF → Print → Camera verification & stamping
+- **Audit Trail**: Every operation records before/after photos, operator, and timestamp
 
-导航分为三组：
+### User Roles & Permissions
 
-| 分组 | 菜单项 | 权限 |
-|------|--------|------|
-| **常用** | 操作台、请假申请 | 所有人 |
-| **审核** | 审计日志、人工复审 | 管理员、复审员 |
-| **管理** | 模板管理、用户管理、统计面板、机械臂标定 | 仅管理员 |
-
-### 3.2 语言切换
-
-点击侧栏底部的 **English / 中文** 按钮可一键切换界面语言。中英文各有一套独立优化的文案和排版。
-
-### 3.3 连接状态指示
-
-侧栏顶部标题旁的圆点显示后端连接状态：
-- **绿色**：连接正常
-- **黄色闪烁**：正在重连
-- **红色**：连接断开
-
-### 3.4 页面布局
-
-- **操作台页面**：特殊宽屏布局，左侧为摄像头实时画面，右侧为操作面板
-- **其他页面**：标准居中布局，最大宽度 1200px
+| Role | Username | Password | Access |
+|------|----------|----------|--------|
+| **Admin** | `admin` | `admin123` | All features: stamping, leave, review, templates, users, calibration, stats |
+| **Operator** | `operator` | `operator123` | Stamping console, submit leave applications, view own applications |
+| **Reviewer** | `reviewer` | `reviewer123` | Stamping console, approve leave, manual review, view audit log |
 
 ---
 
-## 4. 操作台：文档盖章
+## 2. Access & Login
 
-操作台是系统核心页面，位于首页（`/`）。提供**通用盖章**和**请假条盖章**两种模式。
+### 2.1 Access URL
 
-### 4.1 摄像头画面
+Open `http://110.42.229.174` in your browser to access the login page.
 
-操作台显示 USB 摄像头的实时 MJPEG 视频流。将待盖章的 A4 文档平放在摄像头下方，调整位置使文档完整出现在画面中。
+### 2.2 Login
 
-### 4.2 通用文档盖章
+1. Enter your username and password
+2. Click **Login**
+3. You will be redirected to the main console
 
-适用于非请假条的各类文档（证明、表格等），通过模板规则自动核验。
+### 2.3 Registration
 
-**操作步骤：**
+Click **Register** on the login page. Fill in username, email, and password. New users default to the operator role; admins must upgrade roles manually.
 
-1. 将文档放入摄像头下方
-2. 确认模式标签选中 **通用**
-3. 点击 **盖章** 按钮
-4. 系统自动：拍照 → GLM-4V OCR 识别 → 规则核验
-5. 核验通过 → 机械臂自动盖章 → 显示结果
-6. 核验失败 → 文档进入人工复审队列
+### 2.4 Logout
 
-**结果反馈：**
-- ✅ **通过**：盖章成功，显示盖章前后照片
-- ⏳ **待复审**：核验存疑，已提交人工复审
-- ❌ **拒绝**：核验不通过，显示具体原因
+Click the logout icon at the bottom of the sidebar.
 
-### 4.3 请假条盖章（SSE 流式）
+---
 
-请假条盖章采用 SSE（Server-Sent Events）流式传输，前端实时显示每一步进展。
+## 3. Interface Overview
 
-**前置条件：** 请假申请已审批通过，PDF 已下载打印（见[第 5 章](#5-请假申请管理)）。
+### 3.1 Sidebar Navigation
 
-**操作步骤：**
+The left sidebar provides navigation. It can be collapsed to show only icons.
 
-1. 将打印好的纸质请假条（含二维码）放入摄像头下方
-2. 切换到 **请假** 模式
-3. 点击 **盖章** 按钮
-4. 系统 SSE 流式执行，实时显示：
+| Group | Menu Items | Access |
+|-------|-----------|--------|
+| **Common** | Console, Leave Applications | Everyone |
+| **Review** | Audit Log, Manual Review | Admin, Reviewer |
+| **Admin** | Template Management, User Management, Statistics, Calibration | Admin only |
+
+### 3.2 Language Switch
+
+Click the **English / 中文** button at the bottom of the sidebar to switch UI language.
+
+### 3.3 Connection Status
+
+The dot next to the sidebar title shows backend connection status:
+- **Green**: Connected
+- **Yellow (flashing)**: Reconnecting
+- **Red**: Disconnected
+
+### 3.4 Page Layout
+
+- **Console page**: Wide layout — camera feed on the left, operation panel on the right
+- **Other pages**: Centered layout, max width 1200px
+
+---
+
+## 4. Stamping Console
+
+The console is the core page at `/`. It provides **General Stamping** and **Leave Stamping** modes.
+
+### 4.1 Camera Feed
+
+The console displays a live MJPEG video stream from the USB camera. Place the A4 document flat under the camera.
+
+### 4.2 General Document Stamping
+
+For non-leave documents (certificates, forms, etc.), verified against template rules.
+
+1. Place the document under the camera
+2. Ensure **General** mode is selected
+3. Click **Stamp**
+4. The system automatically: captures photo → GLM-4V OCR → rule verification
+5. Pass → robotic arm stamps → shows result
+6. Fail → document enters manual review queue
+
+### 4.3 Leave Stamping (SSE Streaming)
+
+Leave stamping uses Server-Sent Events for real-time progress display.
+
+1. Place the printed leave form (with QR code) under the camera
+2. Switch to **Leave** mode
+3. Click **Stamp**
+4. The system executes in real-time via SSE:
 
    ```
-   ① 拍照中…
-   ② 扫描二维码 → 解析 application_id
-   ③ GLM-4V 视觉识别 → 提取学号、姓名、日期等字段
-   ④ 10 项核验检查：
-      - 二维码签名验证（HMAC-SHA256）
-      - 申请记录存在性
-      - 状态校验（必须为 APPROVED）
-      - 重复盖章检测
-      - 学号/姓名/类型/日期一致性
-      - OCR 置信度评估
-   ⑤ 核验通过 → 机械臂盖章 → 状态更新为 STAMPED
-   ⑥ 核验存疑 → 进入人工复审队列
+   ① Capturing photo…
+   ② Scanning QR code → parsing application_id
+   ③ GLM-4V vision recognition → extracting student ID, name, date, etc.
+   ④ 10 verification checks:
+      - QR code signature verification (HMAC-SHA256)
+      - Application record existence
+      - Status check (must be APPROVED)
+      - Duplicate stamping detection
+      - Student ID / Name / Type / Date consistency
+      - OCR confidence assessment
+   ⑤ Pass → robotic arm stamps → status updates to STAMPED
+   ⑥ Suspect → enters manual review queue
    ```
 
-5. 流程结束后显示最终结果和盖章前后照片
-
-**核验规则说明：**
-
-系统执行 10 项检查，按风险分值累计决策：
-- 存在硬失败（签名无效、记录不存在、状态不对）→ **直接拒绝**
-- 风险分 ≥ 70 → **拒绝**
-- 风险分 40–69 → **人工复审**
-- 风险分 < 40 → **自动通过并盖章**
+5. Final result and before/after photos are displayed
 
 ---
 
-## 5. 请假申请管理
+## 5. Leave Application Management
 
-请假申请是一套**线上审批 + 线下盖章**的完整闭环。
+Leave applications follow a complete **online approval + physical stamping** workflow.
+[See also: Leave Application Flow](docs/leave-application-flow.md) | [Leave Summary](docs/leave-summary.md)
 
-### 5.1 请假列表（`/applications`）
+### 5.1 Leave List (`/applications`)
 
-- **管理员/复审员**：查看所有请假申请
-- **操作员**：仅查看自己创建的申请
+- **Admin/Reviewer**: View all applications
+- **Operator**: View only own applications
 
-列表显示每条申请的编号、学生姓名、请假类型、日期、状态。点击任意行进入详情。
+### 5.2 New Application (`/applications/new`)
 
-### 5.2 新建请假申请（`/applications/new`）
+Any logged-in user can submit. Fill in: student ID, name, department, leave type (sick/personal/other), start date, end date, and reason.
 
-任意登录用户均可提交。
+### 5.3 Approval (Admin/Reviewer only)
 
-填写以下信息：
-- **学号** — 学生学号
-- **姓名** — 学生姓名
-- **院系** — 所属院系
-- **请假类型** — 病假 / 事假 / 其他
-- **开始日期** — 格式 YYYY-MM-DD
-- **结束日期** — 格式 YYYY-MM-DD
-- **请假原因** — 详细说明
+On the detail page, click **Approve** or **Reject**. Approved applications generate a QR code with HMAC-SHA256 anti-tampering signature.
 
-提交后状态为 `SUBMITTED`（等待审批）。
+### 5.4 Download PDF
 
-### 5.3 审批（仅管理员/复审员）
+After approval, download the PDF with QR code and print it for physical stamping.
 
-在请假申请详情页（`/applications/{id}`）：
-
-1. 审核申请内容
-2. 点击 **批准** 或 **拒绝**
-3. **批准后**：系统自动生成带 HMAC-SHA256 防伪签名的二维码，申请状态变为 `APPROVED`
-4. **拒绝后**：状态变为 `REJECTED`
-
-### 5.4 下载请假条 PDF
-
-审批通过后，详情页显示：
-- **二维码图片**：防篡改签名二维码
-- **下载 PDF 按钮**：点击下载含二维码的完整请假条 PDF
-
-将 PDF 打印为纸质版，即可带到盖章操作台进行物理盖章。
-
-### 5.5 状态流转
+### 5.5 Status Flow
 
 ```
-SUBMITTED ──审批通过──→ APPROVED ──盖章成功──→ STAMPED
+SUBMITTED ──approved──→ APPROVED ──stamped──→ STAMPED
      │                      │
-     └──拒绝──→ REJECTED    └──盖章失败──→ 复审队列
+     └──rejected──→ REJECTED └──failed──→ review queue
 ```
 
 ---
 
-## 6. 人工复审
+## 6. Manual Review
 
-当自动核验无法确定时（OCR 置信度不足、字段部分匹配等），文档进入人工复审队列。
+When automatic verification is inconclusive (low OCR confidence, partial field matches), documents enter the manual review queue.
 
-### 6.1 访问权限
+### 6.1 Access
 
-仅**管理员**和**复审员**可访问。路径：`/review`。
+Admin and Reviewer only. Path: `/review`.
 
-### 6.2 复审操作
+### 6.2 Review Process
 
-1. 切换到 **待处理** 标签页查看待复审项目
-2. 点击任意项目展开详情：
-   - 文档拍照图片
-   - OCR 提取的字段
-   - 各检查项的状态（通过/警告/失败）
-   - 失败原因
-3. 人工判断后点击 **批准** 或 **拒绝**
-4. 批准后系统触发盖章；拒绝后记录原因
-
-### 6.3 历史记录
-
-切换 **全部** 标签页可查看所有复审记录（已批准、已拒绝）。
+1. Switch to **Pending** tab
+2. Click an item to see: document photo, OCR fields, check statuses, failure reasons
+3. Click **Approve** or **Reject**
+4. Approval triggers stamping; rejection records the reason
 
 ---
 
-## 7. 模板管理
+## 7. Template Management
 
-仅**管理员**可访问。路径：`/admin/templates`。
+Admin only. Path: `/admin/templates`.
 
-### 7.1 模板列表
-
-展示所有已定义的文档模板，每行显示模板名称、文档类型、字段数量、更新时间。
-
-### 7.2 创建模板
-
-点击 **新建模板** 进入编辑页（`/admin/templates/new`）：
-
-1. 填写模板名称（如"请假条"、"成绩单"）
-2. 定义字段列表，每个字段包含：
-   - **字段名**：如 `student_id`、`name`
-   - **显示名**：中文标签，如"学号"
-   - **OCR 正则**：用于从 GLM-4V OCR 结果中提取该字段的正则表达式
-   - **必填**：是否为必填字段
-   - **验证规则**：类型检查（数字、日期、字符串等）
-3. 保存模板
-
-### 7.3 编辑与删除
-
-- 点击模板行进入编辑页修改
-- 点击删除按钮移除模板（需确认）
-
-### 7.4 导出
-
-每个模板支持导出为 JSON 文件，用于备份或迁移。
+- **List**: All templates with name, type, field count, last updated
+- **Create**: Define template name and fields (name, display name, OCR regex, required, validation rules)
+- **Edit/Delete**: Modify or remove templates
+- **Export**: Export as JSON for backup
 
 ---
 
-## 8. 审计日志
+## 8. Audit Log
 
-仅**管理员**和**复审员**可访问。路径：`/logs`。
+Admin and Reviewer only. Path: `/logs`.
 
-列表展示每次盖章操作的完整记录：
-
-| 字段 | 说明 |
-|------|------|
-| 时间 | 操作时间戳 |
-| 操作员 | 执行盖章的用户 |
-| 文档类型 | 通用 / 请假条 |
-| 结果 | 通过 / 复审 / 拒绝 |
-| 盖章前照片 | 文档原始照片 |
-| 盖章后照片 | 盖章完成照片 |
-
-点击任意记录可查看详细信息，包括 OCR 识别结果和核验详情。
+Displays every stamping operation: timestamp, operator, document type, result, before/after photos.
 
 ---
 
-## 9. 用户管理
+## 9. User Management
 
-仅**管理员**可访问。路径：`/admin/users`。
+Admin only. Path: `/admin/users`.
 
-### 9.1 用户列表
-
-显示所有注册用户，包含用户名、角色、注册时间。
-
-### 9.2 删除用户
-
-点击用户行的删除按钮即可移除账号（管理员不可删除自己）。
-
-### 9.3 角色管理
-
-用户的角色在注册时默认为 `operator`。如需变更角色，目前需在数据库层面操作。
+View all registered users, delete accounts (admin cannot delete themselves). Role changes require database-level operations.
 
 ---
 
-## 10. 机械臂标定
+## 10. Robotic Arm Calibration
 
-仅**管理员**可访问。路径：`/calibration`。
+Admin only. Path: `/calibration`.
+[See also: ARM Servo Info](docs/arm-servo-info.md)
 
-标定页面用于调试和校准 WeArm 六自由度机械臂。
+### 10.1 Single Servo Control
 
-### 10.1 单个舵机控制
+6 independent sliders for real-time servo angle control.
 
-每个舵机（共 6 个）有独立的滑块，拖动滑块可实时控制舵机角度。PWM 值范围取决于机械臂配置。
+### 10.2 Quick Positioning
 
-### 10.2 快速定位
+Preset position buttons for automatic arm movement.
 
-点击预设位置按钮，机械臂自动移动到目标姿态。
+### 10.3 Four-Corner Calibration
 
-### 10.3 四角标定
+1. Move arm to each corner of the stamping area
+2. Save each corner position
+3. System calculates bilinear interpolation coordinates
 
-1. 拖动滑块将机械臂末端移动到盖章区域的四个角
-2. 依次点击 **保存角1 / 角2 / 角3 / 角4**
-3. 系统根据四角位置计算盖章的插值坐标
+### 10.4 Homing
 
-### 10.4 回零
-
-点击 **归零** 按钮，机械臂回到初始位置。
-
----
-
-## 11. 语音控制
-
-操作台集成了语音控制功能（ASR + TTS）：
-
-- 点击麦克风按钮开始语音输入
-- 支持的语音指令：
-  - "盖章" — 触发盖章
-  - "请假模式" — 切换到请假条模式
-  - "通用模式" — 切换到通用文档模式
-- 系统通过语音合成（TTS）播报操作结果
+Click **Home** to return to initial position.
 
 ---
 
-## 12. 统计面板
+## 11. Voice Control
 
-仅**管理员**可访问。路径：`/stats`。
+The console integrates voice control (ASR + TTS).
+[See also: Voice Agent](docs/voice-agent.md) | [Voice Dify Design](docs/voice-dify-design.md)
 
-展示系统运行的关键指标：
-
-- 今日盖章总数
-- 通过率 / 复审率 / 拒绝率
-- 各文档类型的分布
-- 操作员工作量统计
+- Click the microphone button to start voice input
+- Supported commands: "stamp", "leave mode", "general mode"
+- Results are announced via TTS
 
 ---
 
-## 13. 常见问题
+## 12. Statistics Dashboard
 
-### Q1：点击盖章后无反应？
+Admin only. Path: `/stats`.
 
-检查侧栏标题旁的状态指示点。红色表示后端连接断开。检查：
-- 机器人机器是否开机
-- WireGuard VPN 是否连通（`ping 10.66.66.2`）
-- 后端 FastAPI 服务是否在运行
-
-### Q2：摄像头显示黑屏？
-
-- 确认摄像头 USB 已连接
-- 检查是否有其他程序占用摄像头
-- 刷新页面重试
-
-### Q3：请假条盖章时提示"二维码无效"？
-
-- 确认使用的是审批通过后下载的 PDF 打印版
-- 二维码必须清晰完整，未被遮挡或折损
-- 如果二维码模糊，尝试重新打印
-
-### Q4：OCR 识别率低？
-
-- 确保文档平放在摄像头下方，光线均匀
-- GLM-4V 对模糊图片的识别效果有限，建议使用清晰打印文档
-- 在模板管理中调整对应字段的 `ocr_pattern` 正则表达式
-- 手写文档目前识别率较低
-
-### Q5：如何查看盖章前后的照片？
-
-盖章成功后在操作台结果区域直接显示。也可在 **审计日志** 页面中查看历史操作。
-
-### Q6：操作员能看到复审队列吗？
-
-不能。复审队列仅对管理员和复审员可见。
-
-### Q7：中英文切换后部分文字未翻译？
-
-系统采用渐进式国际化。如发现未翻译的文案，请补充对应的 i18n 文件。
+Displays: daily stamp count, pass/review/reject rates, document type distribution, operator workload.
 
 ---
 
-## 14. 系统架构
+## 13. FAQ
 
-### 技术栈
+**Q1: No response after clicking stamp?**
+Check the connection status dot. Red means disconnected. Verify: robot machine is on, WireGuard VPN is connected, FastAPI is running.
 
-| 层 | 技术 |
-|----|------|
-| 前端 | React 19 + Vite + TypeScript + TailwindCSS + shadcn/ui + Zustand |
-| 后端 | FastAPI + SQLAlchemy + MySQL |
-| OCR | **GLM-4V API（智谱 AI）** — 远程 API 调用，非本地部署 |
-| 硬件 | WeArm 串口机械臂（ST3215 协议，6 舵机） |
-| 视觉 | OpenCV + 二维码扫描 |
-| 通知 | Hermes Agent Webhook → 飞书 / 微信 |
-| 构建 | Turborepo monorepo + pnpm workspace |
+**Q2: Camera shows black screen?**
+Ensure USB camera is connected, no other program is using it, and try refreshing the page.
 
-### 数据流
+**Q3: "Invalid QR code" during leave stamping?**
+Use only the printed PDF from an approved application. The QR code must be clear and intact.
+
+**Q4: Low OCR accuracy?**
+Ensure the document is flat with even lighting. Adjust OCR regex patterns in Template Management.
+
+**Q5: How to view before/after photos?**
+Shown directly on the console after stamping. Also available in the Audit Log page.
+
+**Q6: Can operators see the review queue?**
+No. The review queue is only visible to admins and reviewers.
+
+---
+
+## 14. System Architecture
+
+### Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19 + Vite + TypeScript + TailwindCSS + shadcn/ui + Zustand |
+| Backend | FastAPI + SQLAlchemy + MySQL |
+| OCR | GLM-4V API (Zhipu AI) — remote API, not locally deployed |
+| Hardware | WeArm serial robotic arm (ST3215 protocol, 6 servos) |
+| Vision | OpenCV + QR code scanning |
+| Notifications | Hermes Agent Webhook → Feishu / WeChat |
+| Build | Turborepo monorepo + pnpm workspace |
+
+[See also: Tech Stack & Configuration](docs/tech-stack-and-configuration.md) | [SEAL System Overview](docs/seal-stamping-robot-system.md)
+
+### Data Flow
 
 ```
-摄像头拍照 → QR 扫描提取编号 → GLM-4V API 远程 OCR 识别字段
-  → 规则引擎验证（必填字段、类型、格式）
-  → [通过] → 机械臂盖章 → 保存审计日志
-  → [失败] → 创建人工复审队列 → 复审通过 → 盖章
-```
-
-### 完整机器流程
-
-```
-① 操作员将 A4 文件平放到摄像头下
-② 前端点击"盖章"
-③ 摄像头拍照，调用 GLM-4V API 识别文档内容
-④ 调用模板规则验证：
-   ✓ 自动通过 → 机械臂抓取印章、移动到位置、按压盖章
-   ✗ 自动拒绝 → 提交"人工复审"队列，审核员复核后二次处理
-⑤ 保存盖章前后照片和操作日志
-⑥ 操作员取走文件
+Camera capture → QR scan → GLM-4V API remote OCR
+  → Rule engine verification (required fields, type, format)
+  → [Pass] → Robotic arm stamps → Save audit log
+  → [Fail] → Create manual review queue → Review pass → Stamp
 ```
 
 ---
 
-## 15. OCR 方案：GLM-4V API 接入
+## 15. OCR Solution: GLM-4V API Integration
 
-### 为什么用 API 而非本地模型？
+### Why API instead of local model?
 
-系统使用**智谱 AI 的 GLM-4V 多模态大模型 API** 进行文档 OCR 识别，而非本地部署视觉模型。原因：
+- The robot machine (Windows) has limited compute; cannot run large VLMs
+- API latency is acceptable (2-5s/call), suitable for stamping scenarios
+- GLM-4V outperforms PaddleOCR on Chinese document tables and field recognition
+- No need to maintain local GPU environment and model updates
 
-- 机器人机器（Windows）算力有限，无法运行大规模 VLM
-- API 调用延迟可接受（通常 2-5 秒/次），满足盖章场景
-- GLM-4V 对中文文档的表格、字段识别效果优于 PaddleOCR
-- 无需维护本地 GPU 环境和模型更新
+### Configuration
 
-### 配置方式
-
-在 `apps/backend/config.py` 中配置 GLM-4V 环境变量：
-
-```python
-VLM_API_KEY = os.getenv("VLM_API_KEY")       # 智谱 API Key
-VLM_BASE_URL = os.getenv("VLM_BASE_URL")     # https://open.bigmodel.cn/api/paas/v4
-VLM_MODEL = os.getenv("VLM_MODEL", "glm-4v") # 模型名称
-```
-
-或在 `.env` 文件中：
+Set in `.env`:
 
 ```env
-VLM_API_KEY=your-zhipu-api-key
+ZHIPU_API_KEY=your-zhipu-api-key
 VLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
-VLM_MODEL=glm-4v
+VLM_MODEL=glm-4.6v
 ```
 
-### 调用流程
+### Call Flow
 
-`apps/backend/vision/ocr.py` 封装了 GLM-4V API 调用：
+`apps/backend/vision/ocr.py` wraps the GLM-4V API:
 
-1. 摄像头拍照得到图片
-2. 图片转为 base64 编码
-3. 构造 prompt 发送到 GLM-4V API
-4. 解析返回的 JSON 提取字段
-5. 返回 `{字段名: 值, confidence: 置信度}` 字典
+1. Camera captures image
+2. Image encoded to base64
+3. Prompt sent to GLM-4V API
+4. Response parsed to extract fields
+5. Returns `{field_name: value, confidence: score}`
 
-### 备用方案
+### Fallback
 
-系统中保留了 PaddleOCR 作为降级方案。当 GLM-4V API 不可用时，可切换至本地 PaddleOCR。切换方式见 `config.py` 中的 `OCR_BACKEND` 配置项。
+PaddleOCR is available as a degraded fallback when GLM-4V API is unavailable.
 
 ---
 
-## 16. 部署架构
+## 16. Deployment Architecture
 
 ```
-用户浏览器
+User Browser
         │
         ▼
 ┌─────────────────────────────────────────┐
-│  云服务器 (110.42.229.174)              │
+│  Cloud Server (110.42.229.174)          │
 │  Ubuntu 24.04                            │
 │                                          │
 │  Nginx :80                               │
-│  ├─ /          → 前端静态文件             │
-│  ├─ /api/*     → WireGuard 代理          │
-│  ├─ /api/stamp/leave → SSE 流式         │
-│  └─ /video_feed → MJPEG 视频流          │
+│  ├─ /          → Frontend static files   │
+│  ├─ /api/*     → WireGuard proxy         │
+│  ├─ /api/stamp/leave → SSE streaming     │
+│  └─ /video_feed → MJPEG video stream    │
 │                                          │
-│  前端: /var/www/mec202-web/              │
-│  源码: /home/ubuntu/MEC202/              │
+│  Frontend: /var/www/mec202-web/          │
+│  Source: /home/ubuntu/MEC202/            │
 └──────────────┬──────────────────────────┘
                │ WireGuard VPN
                │ 10.66.66.1 ⇄ 10.66.66.2
                ▼
 ┌─────────────────────────────────────────┐
-│  机器人机器 (Windows)                     │
+│  Robot Machine (Windows)                 │
 │                                          │
 │  FastAPI :5001                           │
-│  ├─ /api/stamp          盖章            │
-│  ├─ /api/stamp/leave     SSE 流式盖章   │
-│  ├─ /api/voice/*        语音控制        │
-│  ├─ /api/calibration     标定           │
-│  ├─ /api/logs            审计日志       │
-│  ├─ /api/review/*        复审           │
-│  └─ /video_feed          摄像头视频流   │
+│  ├─ /api/stamp          Stamping         │
+│  ├─ /api/stamp/leave     SSE stamping    │
+│  ├─ /api/voice/*        Voice control    │
+│  ├─ /api/calibration     Calibration     │
+│  ├─ /api/logs            Audit log       │
+│  ├─ /api/review/*        Manual review   │
+│  └─ /video_feed          Camera stream   │
 │                                          │
-│  硬件: WeArm 机械臂 + USB摄像头          │
+│  Hardware: WeArm arm + USB camera        │
 └─────────────────────────────────────────┘
 ```
 
-### 端口映射速查
+[See also: Deployment Guide](docs/deployment.md)
 
-| 服务 | 位置 | 端口 | 说明 |
-|------|------|------|------|
-| Nginx 前端 | 云服务器 | 80 | 对外访问入口 |
-| FastAPI 后端 | 机器人机器 | 5001 | 经 WireGuard 代理 |
-| WireGuard | 云服务器 | 51820/UDP | VPN 隧道 |
-| Vite Dev | 本地 | 5173 | 开发热重载 |
+### Port Mapping
 
----
-
-## 17. API 文档
-
-FastAPI 自动生成交互式文档：`http://127.0.0.1:5001/docs`
-
-### 主要接口
-
-| 方法 | 路径 | 说明 | 权限 |
-|------|------|------|------|
-| POST | `/api/auth/login` | 登录 | 公开 |
-| POST | `/api/auth/register` | 邮箱注册 | 公开 |
-| GET | `/api/auth/me` | 当前用户信息 | 认证用户 |
-| POST | `/api/stamp` | 通用盖章 | 认证用户 |
-| POST | `/api/stamp/leave` | 请假条 SSE 流式盖章 | 认证用户 |
-| GET | `/api/cameras` | 摄像头列表 | 认证用户 |
-| GET | `/api/cameras/video_feed` | MJPEG 视频流 | 认证用户 |
-| GET | `/api/logs` | 审计日志 | admin/reviewer |
-| GET | `/api/review/pending` | 待复审列表 | admin/reviewer |
-| POST | `/api/review/{id}/resolve` | 处理复审 | admin/reviewer |
-| GET/POST | `/api/templates` | 模板列表/创建 | admin |
-| PUT/DELETE | `/api/templates/{id}` | 更新/删除模板 | admin |
-| GET | `/api/leave-applications` | 请假申请列表 | 认证用户 |
-| POST | `/api/leave-applications` | 创建请假申请 | 认证用户 |
-| POST | `/api/leave-applications/{id}/approve` | 审批通过 | admin/reviewer |
-| POST | `/api/leave-applications/{id}/reject` | 审批拒绝 | admin/reviewer |
-| GET | `/api/leave-applications/{id}/download` | 下载 PDF | 认证用户 |
-| GET | `/api/stats/data` | 统计数据 | admin |
-| POST | `/api/calibration/move_single` | 舵机控制 | admin |
-| GET | `/api/calibration/config` | 标定配置 | admin |
-| POST | `/api/voice/chat` | 语音控制 | 认证用户 |
-| POST | `/api/voice/asr` | 语音识别 | 认证用户 |
-| POST | `/api/voice/tts` | 语音合成 | 认证用户 |
-| GET | `/api/users` | 用户列表 | admin |
-| DELETE | `/api/users/{username}` | 删除用户 | admin |
+| Service | Location | Port | Description |
+|---------|----------|------|-------------|
+| Nginx Frontend | Cloud Server | 80 | Public entry point |
+| FastAPI Backend | Robot Machine | 5001 | Proxied via WireGuard |
+| WireGuard | Cloud Server | 51820/UDP | VPN tunnel |
+| Vite Dev | Local | 5173 | Hot reload dev server |
 
 ---
 
-## 18. 项目文件结构
+## 17. API Documentation
+
+FastAPI auto-generated interactive docs: `http://127.0.0.1:5001/docs`
+
+### Main Endpoints
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | `/api/auth/login` | Login | Public |
+| POST | `/api/auth/register` | Email registration | Public |
+| GET | `/api/auth/me` | Current user info | Authenticated |
+| POST | `/api/stamp` | General stamping | Authenticated |
+| POST | `/api/stamp/leave` | Leave SSE streaming stamping | Authenticated |
+| GET | `/api/cameras` | Camera list | Authenticated |
+| GET | `/api/cameras/video_feed` | MJPEG video stream | Authenticated |
+| GET | `/api/logs` | Audit log | admin/reviewer |
+| GET | `/api/review/pending` | Pending review list | admin/reviewer |
+| POST | `/api/review/{id}/resolve` | Resolve review | admin/reviewer |
+| GET/POST | `/api/templates` | Template list/create | admin |
+| PUT/DELETE | `/api/templates/{id}` | Update/delete template | admin |
+| GET | `/api/leave-applications` | Leave application list | Authenticated |
+| POST | `/api/leave-applications` | Create leave application | Authenticated |
+| POST | `/api/leave-applications/{id}/approve` | Approve application | admin/reviewer |
+| POST | `/api/leave-applications/{id}/reject` | Reject application | admin/reviewer |
+| GET | `/api/leave-applications/{id}/download` | Download PDF | Authenticated |
+| GET | `/api/stats/data` | Statistics data | admin |
+| POST | `/api/calibration/move_single` | Servo control | admin |
+| GET | `/api/calibration/config` | Calibration config | admin |
+| POST | `/api/voice/chat` | Voice control | Authenticated |
+| POST | `/api/voice/asr` | Speech recognition | Authenticated |
+| POST | `/api/voice/tts` | Text-to-speech | Authenticated |
+| GET | `/api/users` | User list | admin |
+| DELETE | `/api/users/{username}` | Delete user | admin |
+
+---
+
+## 18. Project File Structure
 
 ```
 MEC202/
 ├── apps/
 │   ├── backend/
-│   │   ├── api/              # FastAPI 路由
-│   │   │   ├── main.py       # SPA 挂载 + 主要 API
-│   │   │   ├── stamp.py      # 盖章流程 + SSE 流式
-│   │   │   ├── leave_applications.py  # 请假审批
-│   │   │   ├── voice.py      # 语音控制
-│   │   │   ├── review.py     # 人工复审
-│   │   │   └── templates.py  # 模板 CRUD
-│   │   ├── database/         # SQLAlchemy 模型
-│   │   ├── vision/           # OCR (GLM-4V API) + QR + 摄像头
-│   │   ├── hardware/         # WeArm 机械臂控制
-│   │   ├── validator/        # 规则引擎 + 10 项核验
-│   │   ├── integration/      # 外部集成（DMS 等）
-│   │   ├── services/         # 通知服务
-│   │   ├── config.py         # 全局配置
-│   │   └── main.py           # 应用入口
-│   └── web/                  # React 前端
+│   │   ├── api/              # FastAPI routes
+│   │   │   ├── main.py       # SPA mount + main API
+│   │   │   ├── stamp.py      # Stamping flow + SSE
+│   │   │   ├── leave_applications.py  # Leave approval
+│   │   │   ├── voice.py      # Voice control
+│   │   │   ├── review.py     # Manual review
+│   │   │   └── templates.py  # Template CRUD
+│   │   ├── database/         # SQLAlchemy models
+│   │   ├── vision/           # OCR (GLM-4V API) + QR + Camera
+│   │   ├── hardware/         # WeArm robotic arm control
+│   │   ├── validator/        # Rule engine + 10-check verification
+│   │   ├── integration/      # External integrations (DMS, etc.)
+│   │   ├── services/         # Notification service
+│   │   ├── config.py         # Global configuration
+│   │   └── main.py           # Application entry point
+│   └── web/                  # React frontend
 │       └── src/
-│           ├── pages/        # 页面组件
-│           ├── components/   # UI 组件
-│           ├── stores/       # Zustand 状态管理
-│           └── i18n/         # 中英文国际化
-├── docs/                     # 项目文档
-├── hardware/                 # 硬件规格文档
-├── simulation/               # 机械臂仿真
+│           ├── pages/        # Page components
+│           ├── components/   # UI components
+│           ├── stores/       # Zustand state management
+│           └── i18n/         # Chinese/English i18n
+├── docs/                     # Project documentation
+├── simulation/               # Robotic arm simulation
 ├── pnpm-workspace.yaml
 └── turbo.json
 ```
 
 ---
 
-## 19. 团队分工
+## 19. Team Roles
 
-| 成员 | 负责模块 | 核心交付 |
-|------|---------|---------|
-| 硬件 | 框架搭建 + 机械臂调试 | 准确盖章，自动标定 |
-| 视觉 | OCR + 摄像头 + 分类 | GLM-4V API 接入，字段提取准确率 ≥ 90% |
-| 逻辑 | 验证规则 + 模板系统 | 模板 CRUD + 10 项核验 + 动态提取 |
-| 前端 | React SPA + API 对接 | 全功能页面，中英文双语，摄像头正常 |
-| 集成 | API 层 + 主流程 + 联调 | 全流程端到端跑通 |
+| Role | Modules | Key Deliverables |
+|------|---------|-----------------|
+| Hardware | Framework + Arm tuning | Accurate stamping, auto calibration |
+| Vision | OCR + Camera + Classification | GLM-4V API integration, field extraction accuracy ≥ 90% |
+| Logic | Verification rules + Template system | Template CRUD + 10-check verification + dynamic extraction |
+| Frontend | React SPA + API integration | Full-featured pages, bilingual UI, camera feed |
+| Integration | API layer + Main flow + Testing | End-to-end workflow |
+
+---
+
+## Documentation Index
+
+| Document | Description |
+|----------|-------------|
+| [Deployment Guide](docs/deployment.md) | Prerequisites, installation, configuration, startup |
+| [Tech Stack & Configuration](docs/tech-stack-and-configuration.md) | Full technology stack details and configuration reference |
+| [SEAL System Overview](docs/seal-stamping-robot-system.md) | System design and architecture overview |
+| [Software Prototype User Guide](docs/software-prototype-user-guide.md) | Detailed user manual with screenshots |
+| [Leave Application Flow](docs/leave-application-flow.md) | Leave approval workflow and permissions |
+| [Leave Summary](docs/leave-summary.md) | Complete leave stamping technical summary |
+| [Leave Request Stamping](docs/leave-request-stamping.md) | Leave request stamping deep dive |
+| [Voice Agent](docs/voice-agent.md) | Voice control system design |
+| [Voice Dify Design](docs/voice-dify-design.md) | Dify workflow integration for voice |
+| [ARM Servo Info](docs/arm-servo-info.md) | WeArm servo specifications and control |
+| [Full Project Documentation](docs/full-project-documentation.md) | Comprehensive project documentation |
 
 ---
 

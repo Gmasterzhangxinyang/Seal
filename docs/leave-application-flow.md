@@ -1,64 +1,64 @@
-# 请假申请业务审批流程
+# Leave Application Business Approval Flow
 
-## 角色权限
+## Role Permissions
 
-| 角色 | 权限 |
+| Role | Permissions |
 |---|---|
-| **admin（管理员）** | 可审批/拒绝任何请假申请，查看所有页面 |
-| **reviewer（审批员）** | 可审批/拒绝任何请假申请，查看审计日志和人工复审 |
-| **operator（操作员）** | 只能查看自己创建的申请和申请状态，**不能审批/拒绝** |
+| **admin (Administrator)** | Can approve/reject any leave application, view all pages |
+| **reviewer (Approver)** | Can approve/reject any leave application, view audit logs and manual review |
+| **operator (Operator)** | Can only view their own applications and application status, **cannot approve/reject** |
 
-## 完整业务流程
-
-```
-创建申请 ──→ 审批 ──→ 下载PDF打印 ──→ 摄像头盖章
-```
-
-### 1. 创建请假申请
-- 任意登录用户在 `/applications/new` 提交请假申请
-- 状态变为 `SUBMITTED`（等待审批）
-- 系统记录 `created_by`（创建者用户名）
-
-### 2. 审批
-- **仅 admin/reviewer** 可见审批/拒绝按钮（前端 + 后端双重鉴权）
-- 后端 API：`POST /api/leave-applications/{id}/approve` 和 `/reject` 使用 `require_role("admin", "reviewer")` 保护
-- 审批通过 → 状态变为 `APPROVED`，生成带 HMAC 签名的二维码
-- 拒绝 → 状态变为 `REJECTED`
-
-### 3. 下载 & 打印
-- 审批通过后，详情页显示二维码和 PDF 下载链接
-- API：`GET /api/leave-applications/{id}/download` 生成带二维码的请假条 PDF
-- 用户打印 PDF 纸质版
-
-### 4. 盖章（操作台）
-- 用户将打印的纸质请假条放在摄像头下
-- 在操作台 `/` 切换到"请假"模式，点击盖章按钮
-- 后端 SSE 流式执行：
-  1. 拍照
-  2. 扫描二维码 → 解析 `application_id`
-  3. GLM-4V 视觉识别提取请假条字段
-  4. 10 项核验检查（签名验证、状态校验、字段匹配等）
-  5. 核验通过 → 机械臂盖章 → 状态变为 `STAMPED`
-  6. 核验存疑 → 推入人工复审队列
-- API：`POST /api/stamp/leave`（SSE 流式）
-
-## 状态流转
+## Complete Business Flow
 
 ```
-SUBMITTED ──审批通过──→ APPROVED ──盖章成功──→ STAMPED
+Create Application ──→ Approval ──→ Download PDF & Print ──→ Camera Stamp
+```
+
+### 1. Create Leave Application
+- Any logged-in user submits a leave application at `/applications/new`
+- Status changes to `SUBMITTED` (awaiting approval)
+- System records `created_by` (creator's username)
+
+### 2. Approval
+- **Only admin/reviewer** can see the approve/reject buttons (dual authentication: frontend + backend)
+- Backend API: `POST /api/leave-applications/{id}/approve` and `/reject` are protected by `require_role("admin", "reviewer")`
+- Approved → status changes to `APPROVED`, a QR code with HMAC signature is generated
+- Rejected → status changes to `REJECTED`
+
+### 3. Download & Print
+- After approval, the detail page displays the QR code and PDF download link
+- API: `GET /api/leave-applications/{id}/download` generates a leave form PDF with QR code
+- User prints the paper version of the PDF
+
+### 4. Stamping (Operation Console)
+- User places the printed paper leave form under the camera
+- Switch to "Leave" mode on the operation console at `/`, then click the stamp button
+- Backend SSE streaming execution:
+  1. Take photo
+  2. Scan QR code → parse `application_id`
+  3. GLM-4V visual recognition extracts leave form fields
+  4. 10 verification checks (signature verification, status validation, field matching, etc.)
+  5. Verification passed → robotic arm stamps → status changes to `STAMPED`
+  6. Verification doubtful → push to manual review queue
+- API: `POST /api/stamp/leave` (SSE streaming)
+
+## Status Transitions
+
+```
+SUBMITTED ──Approved──→ APPROVED ──Stamp Success──→ STAMPED
      │                      │
-     └──拒绝──→ REJECTED    └──盖章失败──→ 复审队列
+     └──Rejected──→ REJECTED    └──Stamp Failed──→ Review Queue
 ```
 
-## 关键文件
+## Key Files
 
-| 层级 | 文件 | 说明 |
+| Layer | File | Description |
 |---|---|---|
-| 前端列表 | `apps/web/src/pages/LeaveApplicationsPage.tsx` | 请假列表，operator 只能看自己的 |
-| 前端详情 | `apps/web/src/pages/LeaveApplicationDetailPage.tsx` | 详情页，审批按钮仅 admin/reviewer 可见 |
-| 前端新建 | `apps/web/src/pages/NewLeaveApplicationPage.tsx` | 新建申请表单 |
-| 后端 API | `apps/backend/api/leave_applications.py` | CRUD、审批、拒绝、PDF 下载 |
-| 后端盖章 | `apps/backend/api/stamp.py` | SSE 流式盖章流程 |
-| 后端核验 | `apps/backend/validator/leave_validator.py` | 10 项核验检查 |
-| 后端鉴权 | `apps/backend/api/deps.py` | `require_role()` 依赖注入 |
-| 数据模型 | `apps/backend/database/models.py` | LeaveApplication 表结构 |
+| Frontend List | `apps/web/src/pages/LeaveApplicationsPage.tsx` | Leave list, operators can only see their own |
+| Frontend Detail | `apps/web/src/pages/LeaveApplicationDetailPage.tsx` | Detail page, approve/reject buttons visible only to admin/reviewer |
+| Frontend New | `apps/web/src/pages/NewLeaveApplicationPage.tsx` | New application form |
+| Backend API | `apps/backend/api/leave_applications.py` | CRUD, approve, reject, PDF download |
+| Backend Stamp | `apps/backend/api/stamp.py` | SSE streaming stamp flow |
+| Backend Validation | `apps/backend/validator/leave_validator.py` | 10 verification checks |
+| Backend Auth | `apps/backend/api/deps.py` | `require_role()` dependency injection |
+| Data Model | `apps/backend/database/models.py` | LeaveApplication table structure |
