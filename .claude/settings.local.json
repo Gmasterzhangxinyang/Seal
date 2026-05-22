@@ -52,7 +52,8 @@
       "Bash(mv \"技术栈与配置.md\" \"Tech-Stack-and-Configuration.md\")",
       "Bash(mv \"软件原型使用文档.md\" \"Software-Prototype-User-Guide.md\")",
       "Bash(mv \"README_完整项目文档.md\" \"README_Full-Project-Documentation.md\")",
-      "Bash(mv \"用户反馈.md\" \"User-Feedback.md\")"
+      "Bash(mv \"用户反馈.md\" \"User-Feedback.md\")",
+      "Bash(curl.exe *)"
     ]
   }
 }
