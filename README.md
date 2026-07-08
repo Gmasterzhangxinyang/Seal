@@ -8,7 +8,8 @@
   A robot server for self service of documentation<br>
   Supervisor: Bangxiang Chen (Bangxiang.chen@xjtlu.edu.cn)<br>
   Maintenance branch: <code>wene</code> · Version v1.0 · Last updated: 2026-05-22<br>
-  Live URL: <a href="http://110.42.229.174">http://110.42.229.174</a>
+  Live URL: <a href="http://110.42.229.174">http://110.42.229.174</a><br>
+  Demo Video: <a href="https://www.bilibili.com/video/BV1LbGq6wEuq">小组作业变苹果发布会？SEAL AI Agent 盖章机器人亮相！
 </p>
 
 ---
